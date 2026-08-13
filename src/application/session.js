@@ -1,6 +1,8 @@
-// guildId -> { connection, speakers: Map<userId, speakerState>, sourceLang }
+import { GAMES } from '../domain/games.js';
+
+// guildId -> { connection, speakers: Map<userId, speakerState>, sourceLang, game }
 // 这是整个应用运行期最接近"Model"的东西——不持久化，只在进程存活期间记录
-// "现在都在监听谁、每个人的源语言/上一句识别结果是什么"。
+// "现在都在监听谁、每个人的源语言/上一句识别结果是什么、当前用哪个游戏的黑话词典"。
 // 注意：这里只放业务状态，不放 Discord 事件监听器引用之类的 adapter 细节
 // （那些留在 adapter/in/voice-listener.js 自己的作用域里）。
 const sessions = new Map();
@@ -10,8 +12,11 @@ export function createSession(guildId, connection) {
     connection,
     speakers: new Map(),
     speakerSeq: 0,
-    // 默认读 .env 的 SOURCE_LANG，之后可以用 /source 命令实时改，不用重启 bot。
+    // 默认读 .env 的 SOURCE_LANG，之后可以用 /lang source:<语言> 命令实时改，不用重启 bot。
     sourceLang: process.env.SOURCE_LANG || undefined,
+    // 默认用 games.js 里的第一个游戏（目前只有 whiteout 一个）；之后可以用 /game 实时改。
+    // 等游戏列表真的涨到两个以上，这个"默认选第一个"可能就不够用了，到时候再改成强制要求选。
+    game: GAMES[0]?.id,
   };
   sessions.set(guildId, session);
   return session;
@@ -32,6 +37,18 @@ export function setSourceLang(guildId, lang) {
 
   session.sourceLang = lang || undefined;
   console.log(`[session] guild ${guildId} 源语言设为：${session.sourceLang ?? '自动检测'}`);
+  return true;
+}
+
+// 返回 false 表示这个 guild 现在没在监听（还没 /join）。gameId 由 /game 的子命令名给出，
+// 不做合法性校验——data.js 里 addSubcommand 已经把选项收窄成 games.js 列表里的值了，
+// Discord 不允许客户端传别的字符串上来。
+export function setGame(guildId, gameId) {
+  const session = sessions.get(guildId);
+  if (!session) return false;
+
+  session.game = gameId;
+  console.log(`[session] guild ${guildId} 游戏设为：${gameId}`);
   return true;
 }
 

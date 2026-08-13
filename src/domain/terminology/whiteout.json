@@ -1,0 +1,611 @@
+[
+  {
+    "term_id": "HERO_AHMOSE",
+    "translations": {
+      "en": "Ahmose",
+      "zh": "阿赫摩斯"
+    }
+  },
+  {
+    "term_id": "HERO_AISLING",
+    "translations": {
+      "en": "Aisling",
+      "zh": "艾詩琳"
+    }
+  },
+  {
+    "term_id": "HERO_ALONSO",
+    "translations": {
+      "en": "Alonso",
+      "zh": "阿隆索"
+    }
+  },
+  {
+    "term_id": "HERO_BAHITI",
+    "translations": {
+      "en": "Bahiti",
+      "zh": "巴希提"
+    }
+  },
+  {
+    "term_id": "HERO_BLANCHETTE",
+    "translations": {
+      "en": "Blanchette",
+      "zh": "布蘭琪"
+    }
+  },
+  {
+    "term_id": "HERO_BRADLEY",
+    "translations": {
+      "en": "Bradley",
+      "zh": "布拉德利"
+    }
+  },
+  {
+    "term_id": "HERO_CARA",
+    "translations": {
+      "en": "Cara",
+      "zh": "卡拉"
+    }
+  },
+  {
+    "term_id": "HERO_CHARLIE",
+    "translations": {
+      "en": "Charlie",
+      "zh": "查理"
+    }
+  },
+  {
+    "term_id": "HERO_CLORIS",
+    "translations": {
+      "en": "Cloris",
+      "zh": "克勞瑞斯"
+    }
+  },
+  {
+    "term_id": "HERO_DOMINIC",
+    "translations": {
+      "en": "Dominic",
+      "zh": "多米尼克"
+    }
+  },
+  {
+    "term_id": "HERO_EDITH",
+    "translations": {
+      "en": "Edith",
+      "zh": "艾迪絲"
+    }
+  },
+  {
+    "term_id": "HERO_ELEONORA",
+    "translations": {
+      "en": "Eleonora",
+      "zh": "埃萊奧諾拉"
+    }
+  },
+  {
+    "term_id": "HERO_ELIF",
+    "translations": {
+      "en": "Elif",
+      "zh": "艾麗芙"
+    }
+  },
+  {
+    "term_id": "HERO_ESTRELLA",
+    "translations": {
+      "en": "Estrella",
+      "zh": "艾絲黛拉"
+    }
+  },
+  {
+    "term_id": "HERO_EUGENE",
+    "translations": {
+      "en": "Eugene",
+      "zh": "尤金"
+    }
+  },
+  {
+    "term_id": "HERO_FLINT",
+    "translations": {
+      "en": "Flint",
+      "zh": "弗林特"
+    }
+  },
+  {
+    "term_id": "HERO_FLORA",
+    "translations": {
+      "en": "Flora",
+      "zh": "弗洛拉"
+    }
+  },
+  {
+    "term_id": "HERO_FRED",
+    "translations": {
+      "en": "Fred",
+      "zh": "弗雷德"
+    }
+  },
+  {
+    "term_id": "HERO_FREYA",
+    "translations": {
+      "en": "Freya",
+      "zh": "芙蕾雅"
+    }
+  },
+  {
+    "term_id": "HERO_GATOT",
+    "translations": {
+      "en": "Gatot",
+      "zh": "加托"
+    }
+  },
+  {
+    "term_id": "HERO_GINA",
+    "translations": {
+      "en": "Gina",
+      "zh": "吉娜"
+    }
+  },
+  {
+    "term_id": "HERO_GISELA",
+    "translations": {
+      "en": "Gisela",
+      "zh": "吉塞拉"
+    }
+  },
+  {
+    "term_id": "HERO_GORDON",
+    "translations": {
+      "en": "Gordon",
+      "zh": "哥頓"
+    }
+  },
+  {
+    "term_id": "HERO_GREG",
+    "translations": {
+      "en": "Greg",
+      "zh": "格雷格"
+    }
+  },
+  {
+    "term_id": "HERO_GREGORY",
+    "translations": {
+      "en": "Gregory",
+      "zh": "格里高利"
+    }
+  },
+  {
+    "term_id": "HERO_NORAH",
+    "translations": {
+      "en": "Norah",
+      "zh": "諾拉"
+    }
+  },
+  {
+    "term_id": "HERO_GWEN",
+    "translations": {
+      "en": "Gwen",
+      "zh": "格溫"
+    }
+  },
+  {
+    "term_id": "HERO_HANK",
+    "translations": {
+      "en": "Hank",
+      "zh": "漢克"
+    }
+  },
+  {
+    "term_id": "HERO_HECTOR",
+    "translations": {
+      "en": "Hector",
+      "zh": "赫克托"
+    }
+  },
+  {
+    "term_id": "HERO_HENDRIK",
+    "translations": {
+      "en": "Hendrik",
+      "zh": "亨德里克"
+    }
+  },
+  {
+    "term_id": "HERO_HERVOR",
+    "translations": {
+      "en": "Hervor",
+      "zh": "赫爾薇爾"
+    }
+  },
+  {
+    "term_id": "HERO_JASSER",
+    "translations": {
+      "en": "Jasser",
+      "zh": "傑塞爾"
+    }
+  },
+  {
+    "term_id": "HERO_JERONIMO",
+    "translations": {
+      "en": "Jeronimo",
+      "zh": "赫羅尼莫"
+    }
+  },
+  {
+    "term_id": "HERO_JESSIE",
+    "translations": {
+      "en": "Jessie",
+      "zh": "杰西"
+    }
+  },
+  {
+    "term_id": "HERO_KAROL",
+    "translations": {
+      "en": "Karol",
+      "zh": "加羅爾"
+    }
+  },
+  {
+    "term_id": "HERO_LIGEIA",
+    "translations": {
+      "en": "Ligeia",
+      "zh": "麗姬婭"
+    }
+  },
+  {
+    "term_id": "HERO_LING_XUE",
+    "translations": {
+      "en": "Ling Xue",
+      "zh": "凌雪"
+    }
+  },
+  {
+    "term_id": "HERO_LLOYD",
+    "translations": {
+      "en": "Lloyd",
+      "zh": "勞埃德"
+    }
+  },
+  {
+    "term_id": "HERO_LOGAN",
+    "translations": {
+      "en": "Logan",
+      "zh": "羅根"
+    }
+  },
+  {
+    "term_id": "HERO_LUMAK_BOKAN",
+    "translations": {
+      "en": "Lumak Bokan",
+      "zh": "盧姆·波根"
+    }
+  },
+  {
+    "term_id": "HERO_LYNN",
+    "translations": {
+      "en": "Lynn",
+      "zh": "琳恩"
+    }
+  },
+  {
+    "term_id": "HERO_MAGNUS",
+    "translations": {
+      "en": "Magnus",
+      "zh": "馬格努斯"
+    }
+  },
+  {
+    "term_id": "HERO_MIA",
+    "translations": {
+      "en": "Mia",
+      "zh": "米婭"
+    }
+  },
+  {
+    "term_id": "HERO_MOLLY",
+    "translations": {
+      "en": "Molly",
+      "zh": "茉莉"
+    }
+  },
+  {
+    "term_id": "HERO_NATALIA",
+    "translations": {
+      "en": "Natalia",
+      "zh": "娜塔莉亞"
+    }
+  },
+  {
+    "term_id": "HERO_PATRICK",
+    "translations": {
+      "en": "Patrick",
+      "zh": "派翠克"
+    }
+  },
+  {
+    "term_id": "HERO_PHILLY",
+    "translations": {
+      "en": "Philly",
+      "zh": "菲蘭德"
+    }
+  },
+  {
+    "term_id": "HERO_REINA",
+    "translations": {
+      "en": "Reina",
+      "zh": "玲奈"
+    }
+  },
+  {
+    "term_id": "HERO_RENEE",
+    "translations": {
+      "en": "Renee",
+      "zh": "芮妮"
+    }
+  },
+  {
+    "term_id": "HERO_RUFUS",
+    "translations": {
+      "en": "Rufus",
+      "zh": "魯弗斯"
+    }
+  },
+  {
+    "term_id": "HERO_SEIGEL",
+    "translations": {
+      "en": "Seigel",
+      "zh": "西格爾"
+    }
+  },
+  {
+    "term_id": "HERO_SEO_YOON",
+    "translations": {
+      "en": "Seo-yoon",
+      "zh": "書允"
+    }
+  },
+  {
+    "term_id": "HERO_SERGEY",
+    "translations": {
+      "en": "Sergey",
+      "zh": "謝爾蓋"
+    }
+  },
+  {
+    "term_id": "HERO_SMITH",
+    "translations": {
+      "en": "Smith",
+      "zh": "史密斯"
+    }
+  },
+  {
+    "term_id": "HERO_SONYA",
+    "translations": {
+      "en": "Sonya",
+      "zh": "索妮婭"
+    }
+  },
+  {
+    "term_id": "HERO_URSAR",
+    "translations": {
+      "en": "Ursar",
+      "zh": "烏爾撒"
+    }
+  },
+  {
+    "term_id": "HERO_VIVECA",
+    "translations": {
+      "en": "Viveca",
+      "zh": "維薇卡"
+    }
+  },
+  {
+    "term_id": "HERO_VULCANUS",
+    "translations": {
+      "en": "Vulcanus",
+      "zh": "烏爾卡努斯"
+    }
+  },
+  {
+    "term_id": "HERO_WAYNE",
+    "translations": {
+      "en": "Wayne",
+      "zh": "韋恩"
+    }
+  },
+  {
+    "term_id": "HERO_WU_MING",
+    "translations": {
+      "en": "Wu Ming",
+      "zh": "無名"
+    }
+  },
+  {
+    "term_id": "HERO_XURA",
+    "translations": {
+      "en": "Xura",
+      "zh": "修拉"
+    }
+  },
+  {
+    "term_id": "HERO_ZINMAN",
+    "translations": {
+      "en": "Zinman",
+      "zh": "津曼"
+    }
+  },
+  {
+    "term_id": "EVENT_ALLIANCE_MOBILIZATION",
+    "translations": {
+      "en": "Alliance Mobilization",
+      "zh": "聯盟總動員"
+    }
+  },
+  {
+    "term_id": "EVENT_BEAR_HUNT",
+    "translations": {
+      "en": "Bear Hunt",
+      "zh": "獵熊行動"
+    }
+  },
+  {
+    "term_id": "EVENT_BROTHER_IN_ARMS",
+    "translations": {
+      "en": "Brother In Arms",
+      "zh": "全軍參戰"
+    }
+  },
+  {
+    "term_id": "EVENT_CANYON_CLASH",
+    "translations": {
+      "en": "Canyon Clash",
+      "zh": "峽谷會戰"
+    }
+  },
+  {
+    "term_id": "EVENT_CRAZY_JOE",
+    "translations": {
+      "en": "Crazy Joe",
+      "zh": "瘋狂的喬伊"
+    }
+  },
+  {
+    "term_id": "EVENT_DEADSHOT",
+    "translations": {
+      "en": "Deadshot",
+      "zh": "正中靶心"
+    }
+  },
+  {
+    "term_id": "EVENT_FLAME_AND_FANG",
+    "translations": {
+      "en": "Flame and Fang",
+      "zh": "烈焰與獠牙"
+    }
+  },
+  {
+    "term_id": "EVENT_FOUNDRY_BATTLE",
+    "translations": {
+      "en": "Foundry Battle",
+      "zh": "兵工廠爭奪戰"
+    }
+  },
+  {
+    "term_id": "EVENT_FROSTY_FORTUNE",
+    "translations": {
+      "en": "Frosty Fortune",
+      "zh": "冰封的寶藏"
+    }
+  },
+  {
+    "term_id": "EVENT_GINA_S_REVENGE",
+    "translations": {
+      "en": "Gina's Revenge",
+      "zh": "吉娜的復仇"
+    }
+  },
+  {
+    "term_id": "EVENT_HALL_OF_HEROES",
+    "translations": {
+      "en": "Hall of Heroes",
+      "zh": "英雄殿堂"
+    }
+  },
+  {
+    "term_id": "EVENT_HERO_RALLY",
+    "translations": {
+      "en": "Hero Rally",
+      "zh": "英雄集結"
+    }
+  },
+  {
+    "term_id": "EVENT_HERO_S_MISSION",
+    "translations": {
+      "en": "Hero's Mission",
+      "zh": "英雄的使命"
+    }
+  },
+  {
+    "term_id": "EVENT_JOURNEY_OF_LIGHT",
+    "translations": {
+      "en": "Journey of Light",
+      "zh": "逐光之旅"
+    }
+  },
+  {
+    "term_id": "EVENT_KING_OF_ICEFIELD",
+    "translations": {
+      "en": "King of Icefield",
+      "zh": "凍土之王"
+    }
+  },
+  {
+    "term_id": "EVENT_MERCENARY_PRESTIGE",
+    "translations": {
+      "en": "Mercenary Prestige",
+      "zh": "傭兵榮耀"
+    }
+  },
+  {
+    "term_id": "EVENT_OFFICER_PROJECT",
+    "translations": {
+      "en": "Officer Project",
+      "zh": "士官計畫"
+    }
+  },
+  {
+    "term_id": "EVENT_SNOWBUSTERS",
+    "translations": {
+      "en": "Snowbusters",
+      "zh": "除雪小隊"
+    }
+  },
+  {
+    "term_id": "EVENT_STATE_MERGER",
+    "translations": {
+      "en": "State Merger",
+      "zh": "王國合併"
+    }
+  },
+  {
+    "term_id": "EVENT_SUNFIRE_CASTLE",
+    "translations": {
+      "en": "Sunfire Castle",
+      "zh": "決戰王城"
+    }
+  },
+  {
+    "term_id": "EVENT_SVS",
+    "translations": {
+      "en": "SVS",
+      "zh": "SVS"
+    }
+  },
+  {
+    "term_id": "EVENT_TREASURE_HUNTER",
+    "translations": {
+      "en": "Treasure Hunter",
+      "zh": "秘寶獵人"
+    }
+  },
+  {
+    "term_id": "EVENT_TUNDRA_TRADING_STATION",
+    "translations": {
+      "en": "Tundra Trading Station",
+      "zh": "雪原貿易站"
+    }
+  },
+  {
+    "term_id": "EVENT_VAULT_OF_ENIGMA",
+    "translations": {
+      "en": "Vault Of Enigma",
+      "zh": "神秘藏寶室"
+    }
+  },
+  {
+    "term_id": "EVENT_WEEKLY_BENEFITS_CARD",
+    "translations": {
+      "en": "Weekly Benefits Card",
+      "zh": "優惠週卡"
+    }
+  }
+]

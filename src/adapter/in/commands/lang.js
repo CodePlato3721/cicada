@@ -2,11 +2,11 @@ import { SlashCommandBuilder } from 'discord.js';
 import { setSourceLang } from '../../../application/session.js';
 
 export const data = new SlashCommandBuilder()
-  .setName('source')
+  .setName('lang')
   .setDescription('手动设置说话人的源语言，帮 STT 提升准确率（不设置就自动检测语种）')
   .addStringOption((option) =>
     option
-      .setName('lang')
+      .setName('source')
       .setDescription('说话人使用的语言')
       .setRequired(true)
       .addChoices(
@@ -17,7 +17,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction) {
-  const lang = interaction.options.getString('lang', true);
+  const lang = interaction.options.getString('source', true);
   const actualLang = lang === 'auto' ? null : lang;
 
   const ok = setSourceLang(interaction.guildId, actualLang);

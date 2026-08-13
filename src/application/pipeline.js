@@ -1,5 +1,6 @@
 import { ttsWavToDiscordPcm } from '../domain/wav.js';
 import { estimateGender } from '../domain/pitch.js';
+import { applyTerminology, stripKeepTags } from '../domain/terminology.js';
 import { saveInputRecording, deleteRecording, saveOutputRecording } from '../adapter/out/recordings.js';
 import { transcribe } from './ports/stt.js';
 import { translate } from './ports/translate.js';
@@ -32,6 +33,19 @@ function assignSpeakerVoice(guildId, speakerState, monoFloat32) {
   console.log(`[pipeline] ${speakerState.label} 首次开口，判定性别=${gender}（${pitchInfo}），分配音色：${speakerState.voice}`);
 }
 
+// 术语库检测（terminology.js）需要知道"这段话是什么语言"才能查对应语言的自动机。
+// /lang source:<语言> 手动指定了源语言就直接用那个，最权威；没指定（自动检测）就用这个说话人
+// 第一段话里 STT 识别出的语种锁定下来，之后整场沿用——跟 assignSpeakerVoice 同一个
+// "首次开口定终身"的取舍：避免短句反复重判抖动，代价是万一说话人中途换语言就跟不上了。
+function resolveSpeakerLang(sourceLang, speakerState, sttResult) {
+  if (sourceLang) return sourceLang;
+  if (!speakerState.lang && sttResult.language) {
+    speakerState.lang = sttResult.language;
+    console.log(`[pipeline] ${speakerState.label ?? '?'} 首次开口，自动检测语种并锁定：${speakerState.lang}`);
+  }
+  return speakerState.lang;
+}
+
 // 一段完整语音（16kHz 单声道 Float32）→ STT → 翻译 → TTS → 播放。
 // 这个函数是"发射后不管"地被调用的，不会阻塞上面继续采集下一句话。
 // 这是这个项目里唯一的"用例"，所以叫 pipeline 而不是 xxxService——名字更贴近它实际做的事。
@@ -48,7 +62,8 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
   const segmentFile = await saveInputRecording(userId, stamp, monoFloat32, 16000);
   console.log(`[pipeline] ${who} [${elapsed()}] 音频已存盘，开始 STT`);
 
-  const sourceLang = getSession(guildId)?.sourceLang;
+  const session = getSession(guildId);
+  const sourceLang = session?.sourceLang;
   let result;
   try {
     result = await transcribe(segmentFile, {
@@ -69,8 +84,26 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
   console.log(`[pipeline] ${who} 原文: "${transcriptText}"`);
   speakerState.lastTranscript = transcriptText;
 
-  const translatedText = await translate(transcriptText, TARGET_LANG);
+  // 术语库检测：命中当前 /game 选定游戏的黑话就本地换成目标语言真实译词、用 <keep>
+  // 包住，让 LLM 只管调整周围语法，标签内容不许动。Phase A 先不做翻译后校验，靠下面
+  // 这条日志人工盯 LLM 有没有老实遵循标签指令（见 CLAUDE.md「游戏黑话/专有名词术语库」）。
+  const speakerLang = resolveSpeakerLang(sourceLang, speakerState, result);
+  const { text: preparedText, hitCount } = applyTerminology(
+    transcriptText,
+    speakerLang,
+    TARGET_LANG,
+    session?.game,
+  );
+  if (hitCount > 0) {
+    console.log(`[pipeline] ${who} 命中 ${hitCount} 个术语，预处理后送翻译: "${preparedText}"`);
+  }
+
+  const rawTranslatedText = await translate(preparedText, TARGET_LANG);
   console.log(`[pipeline] ${who} [${elapsed()}] 翻译返回`);
+  if (hitCount > 0) {
+    console.log(`[pipeline] ${who} 翻译原始输出(校验用，含 <keep> 标签): "${rawTranslatedText}"`);
+  }
+  const translatedText = stripKeepTags(rawTranslatedText);
   console.log(`[pipeline] ${who} 译文(${TARGET_LANG}): "${translatedText}"`);
 
   if (!TTS_SUPPORTED_LANGS.includes(TARGET_LANG) || !translatedText) {
