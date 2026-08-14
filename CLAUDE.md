@@ -9,7 +9,6 @@
 当前范围外(暂不涉及):
 - 商业化/订阅/付费逻辑
 - 多租户(guild_id → API key 映射)
-- Discord App 公开发布/审核
 - 手机 companion app
 
 ---
@@ -112,8 +111,10 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 
 已经用真实翻译 API(`TRANSLATE_PROVIDER=deepseek`)验证过指令遵循度:中/英/法互译测试(含法语阴阳性冠词这个关键考验场景)标签保留率和标签周围语法调整都符合预期。
 
-### 术语检测用哪种语言扫描:说话人"首次开口锁定"
-跟 `pipeline.js` 里已有的 `assignSpeakerVoice`(首次开口判性别→分配音色,之后整场固定)同一个模式:`/lang source:<语言>` 手动指定源语言时直接用;自动检测模式下,用这个说话人第一段语音里 STT 识别到的语种锁定到 `speakerState.lang`,之后这个说话人的所有段落复用,不重新判断。取舍:说话人中途混用别的语言说黑话会捕捉不到(比如中文玩家临时蹦出一句英文术语),这是已知的、刻意接受的代价,不是遗漏。
+### 术语检测用哪种语言扫描
+`session.sourceLang`/`session.targetLang` 现在有系统默认值(源=zh、目标=en,见 `session.js`),用 `/lang source:<语言> target:<语言>` 改(两个参数都可选,只传一个就只改那个,另一个不动;两个都不传就回显当前设置)。目前 `/lang` 的 `addChoices` 只列了 zh/en 两个选项,不再提供"自动检测"。
+
+`pipeline.js` 里 `resolveSpeakerLang` 还留着"用说话人第一段话的 STT 识别结果锁定语种"这条逻辑(跟 `assignSpeakerVoice` 首次开口判性别→分配音色是同一个模式),但因为 `sourceLang` 现在总有默认值,这条分支目前实际上不会被触发,是刻意保留的死代码——以后如果 `/lang` 想重新开放"自动检测"选项,这层逻辑不用重新写,把命令层的选项加回来接上就行。
 
 **注意**:`STT_PROVIDER=groq` 时 Whisper 返回的语种字段可能是英文全称(如 "english")而非 ISO 码,跟词典的语言 key 对不上,会导致术语检测静默失效(优雅降级——不报错,就是不生效)。当前实际配置的供应商是 Deepgram,已经处理好(显式传 `detect_language=true` 并提取 ISO 码),不受影响。
 
@@ -138,7 +139,7 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 ## Discord Bot 配置信息
 
 - Bot 名称:`cicada`
-- 状态:私有开发用途,未公开发布,不需要经过 Discord 审核流程
+- 状态:Developer Portal 中已设为 Public(公开),已通过验证;实际使用仍限于开发者自建的私人测试 Discord 服务器,尚未走应用商店/App Directory 上架流程
 - 测试服务器:开发者自建的私人测试 Discord 服务器
 - 权限需求(OAuth2 URL Generator 中勾选):
   - scope:`bot` + `applications.commands`(后者漏勾的话,`/join`/`/leave`/`/lang`/`/game` 这些斜杠命令邀请进服务器后不会生效)

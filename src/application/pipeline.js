@@ -9,7 +9,10 @@ import { enqueuePlayback } from '../adapter/out/playback-queue.js';
 import { getSession, listSpeakers } from './session.js';
 import { assignVoice } from './voice-assignment.js';
 
-const TARGET_LANG = process.env.TRANSLATE_TARGET_LANG ?? 'en';
+// 目标语言不再是进程启动时定死的常量——现在可以用 /lang target:<语言> 按 guild 实时改，
+// 所以每次处理都要从 session 里现读，见下面 handleSegment。这个常量只是兜底
+// （正常流程 session 一定存在，因为 handleSegment 只会在 /join 之后才被调用）。
+const DEFAULT_TARGET_LANG = process.env.TRANSLATE_TARGET_LANG || 'en';
 // 显式设置 TTS_VOICE 就强制所有人用同一个音色（调试/回退用）；不设置就默认按
 // 每个说话人检测到的性别分配音色（见 assignSpeakerVoice），整场会话保持不变。
 const TTS_VOICE_OVERRIDE = process.env.TTS_VOICE || undefined;
@@ -34,9 +37,11 @@ function assignSpeakerVoice(guildId, speakerState, monoFloat32) {
 }
 
 // 术语库检测（terminology.js）需要知道"这段话是什么语言"才能查对应语言的自动机。
-// /lang source:<语言> 手动指定了源语言就直接用那个，最权威；没指定（自动检测）就用这个说话人
-// 第一段话里 STT 识别出的语种锁定下来，之后整场沿用——跟 assignSpeakerVoice 同一个
-// "首次开口定终身"的取舍：避免短句反复重判抖动，代价是万一说话人中途换语言就跟不上了。
+// session.sourceLang 现在有系统默认值（zh），不再是"未设置就是 undefined/自动检测"，
+// 所以下面这个函数第一行的 `if (sourceLang) return sourceLang` 目前总是会命中——
+// 后面"用说话人第一段话的 STT 识别结果锁定语种"这条分支暂时是死代码，不会被触发。
+// 留着不删是因为逻辑本身没问题，万一以后 /lang 又想开放"自动检测"这个选项，
+// 直接把这个分支接回命令层就行，不用重新写。
 function resolveSpeakerLang(sourceLang, speakerState, sttResult) {
   if (sourceLang) return sourceLang;
   if (!speakerState.lang && sttResult.language) {
@@ -64,6 +69,7 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
 
   const session = getSession(guildId);
   const sourceLang = session?.sourceLang;
+  const targetLang = session?.targetLang ?? DEFAULT_TARGET_LANG;
   let result;
   try {
     result = await transcribe(segmentFile, {
@@ -91,26 +97,26 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
   const { text: preparedText, hitCount } = applyTerminology(
     transcriptText,
     speakerLang,
-    TARGET_LANG,
+    targetLang,
     session?.game,
   );
   if (hitCount > 0) {
     console.log(`[pipeline] ${who} 命中 ${hitCount} 个术语，预处理后送翻译: "${preparedText}"`);
   }
 
-  const rawTranslatedText = await translate(preparedText, TARGET_LANG);
+  const rawTranslatedText = await translate(preparedText, targetLang);
   console.log(`[pipeline] ${who} [${elapsed()}] 翻译返回`);
   if (hitCount > 0) {
     console.log(`[pipeline] ${who} 翻译原始输出(校验用，含 <keep> 标签): "${rawTranslatedText}"`);
   }
   const translatedText = stripKeepTags(rawTranslatedText);
-  console.log(`[pipeline] ${who} 译文(${TARGET_LANG}): "${translatedText}"`);
+  console.log(`[pipeline] ${who} 译文(${targetLang}): "${translatedText}"`);
 
-  if (!TTS_SUPPORTED_LANGS.includes(TARGET_LANG) || !translatedText) {
+  if (!TTS_SUPPORTED_LANGS.includes(targetLang) || !translatedText) {
     return;
   }
 
-  const ttsWav = await synthesize(translatedText, { voice: TTS_VOICE_OVERRIDE ?? speakerState.voice, targetLang: TARGET_LANG });
+  const ttsWav = await synthesize(translatedText, { voice: TTS_VOICE_OVERRIDE ?? speakerState.voice, targetLang });
   console.log(`[pipeline] ${who} [${elapsed()}] TTS 返回（音色：${TTS_VOICE_OVERRIDE ?? speakerState.voice}），进入播放队列`);
   await saveOutputRecording(userId, stamp, ttsWav);
 

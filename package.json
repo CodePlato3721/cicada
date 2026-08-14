@@ -7,7 +7,10 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "deploy-commands": "node src/deploy-commands.js"
+    "deploy-commands": "node src/deploy-commands.js",
+    "deploy-commands:global": "node src/deploy-commands.js --global",
+    "scrape-terms": "node scripts/scrape-terms.js",
+    "merge-terms": "node scripts/merge-terms.js"
   },
   "keywords": [],
   "author": "",

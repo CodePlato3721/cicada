@@ -1,19 +1,26 @@
 import { GAMES } from '../domain/games.js';
 
-// guildId -> { connection, speakers: Map<userId, speakerState>, sourceLang, game }
+// guildId -> { connection, speakers: Map<userId, speakerState>, sourceLang, targetLang, game }
 // 这是整个应用运行期最接近"Model"的东西——不持久化，只在进程存活期间记录
-// "现在都在监听谁、每个人的源语言/上一句识别结果是什么、当前用哪个游戏的黑话词典"。
+// "现在都在监听谁、每个人的源语言/上一句识别结果是什么、翻译成什么语言、当前用哪个游戏的黑话词典"。
 // 注意：这里只放业务状态，不放 Discord 事件监听器引用之类的 adapter 细节
 // （那些留在 adapter/in/voice-listener.js 自己的作用域里）。
 const sessions = new Map();
+
+// 目前只支持中文/英文，系统默认源语言中文、目标语言英文，可以用 /lang source:<语言>
+// target:<语言> 分别改（两个参数都可选，只传一个就只改那一个，另一个不动）。
+const DEFAULT_SOURCE_LANG = 'zh';
+const DEFAULT_TARGET_LANG = 'en';
 
 export function createSession(guildId, connection) {
   const session = {
     connection,
     speakers: new Map(),
     speakerSeq: 0,
-    // 默认读 .env 的 SOURCE_LANG，之后可以用 /lang source:<语言> 命令实时改，不用重启 bot。
-    sourceLang: process.env.SOURCE_LANG || undefined,
+    // 默认读 .env 的 SOURCE_LANG/TRANSLATE_TARGET_LANG，没配就用上面的默认值；
+    // 之后可以用 /lang 命令实时改，不用重启 bot。
+    sourceLang: process.env.SOURCE_LANG || DEFAULT_SOURCE_LANG,
+    targetLang: process.env.TRANSLATE_TARGET_LANG || DEFAULT_TARGET_LANG,
     // 默认用 games.js 里的第一个游戏（目前只有 whiteout 一个）；之后可以用 /game 实时改。
     // 等游戏列表真的涨到两个以上，这个"默认选第一个"可能就不够用了，到时候再改成强制要求选。
     game: GAMES[0]?.id,
@@ -30,13 +37,23 @@ export function deleteSession(guildId) {
   sessions.delete(guildId);
 }
 
-// lang 传 null/undefined 表示切回自动检测。返回 false 表示这个 guild 现在没在监听（还没 /join）。
+// 返回 false 表示这个 guild 现在没在监听（还没 /join）。lang 由 /lang 命令的 addChoices
+// 收窄过，目前只会是 'zh'/'en'。
 export function setSourceLang(guildId, lang) {
   const session = sessions.get(guildId);
   if (!session) return false;
 
-  session.sourceLang = lang || undefined;
-  console.log(`[session] guild ${guildId} 源语言设为：${session.sourceLang ?? '自动检测'}`);
+  session.sourceLang = lang;
+  console.log(`[session] guild ${guildId} 源语言设为：${lang}`);
+  return true;
+}
+
+export function setTargetLang(guildId, lang) {
+  const session = sessions.get(guildId);
+  if (!session) return false;
+
+  session.targetLang = lang;
+  console.log(`[session] guild ${guildId} 目标语言设为：${lang}`);
   return true;
 }
 
