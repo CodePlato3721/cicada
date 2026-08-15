@@ -1,0 +1,21 @@
+name: Deploy cicada
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy on droplet
+        run: |
+          set -e
+          cd /opt/cicada
+          git fetch origin main
+          git reset --hard origin/main
+          npm ci --omit=dev
+          pm2 restart cicada
+          pm2 save
