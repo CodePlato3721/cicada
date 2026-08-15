@@ -39,14 +39,15 @@ export function synthesize(text, { voice, targetLang, provider }) {
   return impl.synthesize(text, { voice, targetLang });
 }
 
-// voice-assignment.js 按性别分配音色时，要先知道"这个供应商有哪些音色可选"——
-// 跟 synthesize 一样，provider 从调用方传入，不是模块级别定死的。
-export function getVoicesByGender(provider) {
-  return PROVIDERS[provider]?.VOICES_BY_GENDER ?? {};
-}
-
-export function getValidVoices(provider) {
-  return PROVIDERS[provider]?.VALID_VOICES ?? [];
+// voice-assignment.js 按性别分配音色时，要先知道"这个供应商、这个语言下有哪些音色可选"
+// ——provider 和 lang 都从调用方传入，不是模块级别定死的。lang 是必须的：同一个供应商
+// 可能覆盖好几种语言（比如 deepgram 覆盖 en/fr/ja/de/es），音色命名空间和实际发音都是
+// 按语言分开的，只看供应商不看语言会选出语言不匹配的音色（实测出现过目标语言中文却
+// 分配到葡萄牙语音色这种问题，音色池现在统一按"语言 -> 性别"两层分组，见各 adapter
+// 的 VOICES_BY_LANG_AND_GENDER）。返回不到就给空对象，调用方（voice-assignment.js）
+// 自己处理"这个语言这个供应商下压根没配过音色"的情况。
+export function getVoicesByGender(provider, lang) {
+  return PROVIDERS[provider]?.VOICES_BY_LANG_AND_GENDER?.[lang] ?? {};
 }
 
 export const PROVIDER_NAMES = Object.keys(PROVIDERS);

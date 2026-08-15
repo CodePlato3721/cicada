@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm -v)"
+      "Bash(npm -v)",
+      "Bash(node -e \"const d=require\\('./src/domain/terminology/whiteout.json'\\); const prefixes={}; d.forEach\\(e=>{const p=e.term_id.split\\('_'\\)[0]; prefixes[p]=\\(prefixes[p]||0\\)+1}\\); console.log\\(prefixes\\); console.log\\('总计:', d.length\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(rm scripts/drafts/*.ko-ar.patch.json)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(rm -f scripts/drafts/azure-test.wav)",
+      "Bash(rmdir scripts/drafts)"
     ]
   }
 }

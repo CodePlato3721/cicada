@@ -12,18 +12,38 @@ import { synthesizeSsml } from './client.js';
 //   裸的 'ar' 代码对应的"通用阿拉伯语"选项，ar-SA 对应的现代标准阿拉伯语是最接近
 //   "通用"的选择。
 // - 葡萄牙语用巴西口音 pt-BR，不是葡萄牙本土 pt-PT：全球使用人口巴西远多于葡萄牙。
-export const VOICES_BY_GENDER = {
-  male: ['zh-TW-YunJheNeural', 'ko-KR-InJoonNeural', 'pt-BR-AntonioNeural', 'ar-SA-HamedNeural'],
-  female: [
-    'zh-TW-HsiaoChenNeural',
-    'zh-TW-HsiaoYuNeural',
-    'ko-KR-SunHiNeural',
-    'pt-BR-FranciscaNeural',
-    'ar-SA-ZariyahNeural',
-  ],
+//
+// 按"语言 -> 性别"两层分组，不是"性别 -> 全部语言混一起"——之前是后者（一个 male 数组
+// 塞了 zh/ko/pt/ar 四种语言的音色），assignVoice 按性别随机挑的时候完全不知道要念哪种
+// 语言，实测出现过目标语言是中文、却随机抽中葡萄牙语音色去念中文文本，Azure 只能返回
+// 一份近乎空的音频（44 字节，没有实际语音内容），下游 WAV 解析直接报错。语言必须是
+// 分组的第一层，同一门语言内部才按性别再分一层。
+export const VOICES_BY_LANG_AND_GENDER = {
+  zh: {
+    male: ['zh-TW-YunJheNeural'],
+    female: ['zh-TW-HsiaoChenNeural', 'zh-TW-HsiaoYuNeural'],
+  },
+  ko: {
+    male: ['ko-KR-InJoonNeural'],
+    female: ['ko-KR-SunHiNeural'],
+  },
+  pt: {
+    male: ['pt-BR-AntonioNeural'],
+    female: ['pt-BR-FranciscaNeural'],
+  },
+  ar: {
+    male: ['ar-SA-HamedNeural'],
+    female: ['ar-SA-ZariyahNeural'],
+  },
 };
 
-export const VALID_VOICES = [...VOICES_BY_GENDER.male, ...VOICES_BY_GENDER.female];
+// 提供给 synthesize() 内部校验用的扁平列表——校验"这是不是本供应商认识的音色"这件事
+// 不需要知道语言，一个 provider 级别的合法音色集合就够了，跟 VOICES_BY_LANG_AND_GENDER
+// 各自服务不同的目的（一个用于按语言分配音色，一个用于校验音色合法性）。
+export const VALID_VOICES = Object.values(VOICES_BY_LANG_AND_GENDER).flatMap((byGender) => [
+  ...byGender.male,
+  ...byGender.female,
+]);
 
 export const TTS_SUPPORTED_LANGS = ['zh', 'ko', 'pt', 'ar'];
 
