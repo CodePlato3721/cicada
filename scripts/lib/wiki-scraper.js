@@ -7,9 +7,14 @@
 // 这是 whiteoutsurvival.wiki 这一个站点的specifics，换了别的 wiki 来源这个常量要跟着改。
 const SITE_TITLE_SUFFIX = /\s*-\s*寒霜啟示錄\s*$/;
 
+// 韩文/阿拉伯语等其他语言页面的标题后缀，跟繁体中文不一样——繁体中文那边后缀是
+// 本地化过的游戏名"寒霜啟示錄"（见 SITE_TITLE_SUFFIX），韩文/阿拉伯语页面只是简单
+// 加了英文站名，不本地化，所以后缀统一是这个（实测 ko/arb 页面标题验证过）。
+const GENERIC_TITLE_SUFFIX = /\s*-\s*Whiteout Survival Wiki\s*$/i;
+
 const USER_AGENT = 'Mozilla/5.0 (compatible; cicada-terminology-scraper/1.0)';
 
-async function fetchText(url) {
+export async function fetchText(url) {
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`HTTP ${res.status}：${url}`);
   return res.text();
@@ -84,11 +89,61 @@ export async function resolveZhName(enDetailUrl) {
   return decodeEntities(titleMatch[1]).replace(SITE_TITLE_SUFFIX, '').trim();
 }
 
+// 从一份已经抓好的英文详情页 HTML 里，一次性找出多个 hreflang 代码各自对应的互链地址。
+// 跟 resolveZhName 分开设计（不是让 resolveZhName 支持传参数复用），是因为要支持"一次
+// fetch 英文详情页、同时找多个语言的互链"——给一个词条同时补韩文+阿拉伯语时，只用请求
+// 一次英文详情页，不用每加一个语言就重新请求一次。
+export function extractHreflangLinks(enHtml, hreflangCodes) {
+  const result = {};
+  for (const code of hreflangCodes) {
+    const re = new RegExp(`<link rel="alternate" href="([^"]+)" hreflang="${escapeRegExp(code)}"\\s*/?>`);
+    const match = enHtml.match(re);
+    result[code] = match ? match[1] : null;
+  }
+  return result;
+}
+
+// 给定一个页面 URL，抓取并从 <title> 摘出名字、去掉站点固定后缀。suffixPattern 默认是
+// 韩文/阿拉伯语这类"简单加英文站名"的后缀；繁体中文那种本地化后缀请继续用 resolveZhName。
+export async function resolveTitleFromUrl(url, suffixPattern = GENERIC_TITLE_SUFFIX) {
+  const html = await fetchText(url);
+  const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+  if (!titleMatch) return null;
+  return decodeEntities(titleMatch[1]).replace(suffixPattern, '').trim();
+}
+
 // 规则明确、可以放心自动做的清洗——只做这一件事：弯引号统一成直引号（配合 Deepgram
 // smart_format 的标点习惯）。刻意不在这里做"去括号注解""简化缩写"这类需要语境判断
 // 的清洗，那些留给人工审核阶段（见 CLAUDE.md 和 merge-terms.js 的工作流）。
 export function cleanText(name) {
   return name.replace(/[\u2018\u2019]/g, "'").trim();
+}
+
+// 科技类词条常见"基础名 + 罗马数字等级后缀"（比如 "Lancer Armor I"/"Lancer Armor II"）。
+// 同一个黑话译法不会因为等级变化，收录每个等级各一条纯属浪费词典条目，没有额外的翻译
+// 准确性收益——只收基础名字，等级后缀在这一步去掉（scrape-terms.js 再按去掉后缀的
+// 名字去重，同一个基础名只保留第一次出现的那条）。
+// 用严格的罗马数字构造规则（不是"整串字符都属于 IVXLCDM 集合"这种粗糙判断），避免
+// 误伤真的以这几个字母结尾的普通词（比如 "MILD" 不会被误判成罗马数字）。
+//
+// 这个 wiki 的科技类页面（research）不是用 ASCII 字母拼罗马数字（"I"+"I"+"I"），
+// 而是用 Unicode「罗马数字」专用区块里的单个字符（比如 "Ⅲ" 是 U+2162 这一个字符，
+// 不是三个 "I"）——ASCII 正则完全匹配不到这种字符，第一版漏了这个情况，导致
+// "Molten Vambrace"/"Molten Vambrace Ⅱ"/"Molten Vambrace Ⅲ" 被当成三个不同的词，
+// 一个都没被去重（实测 research 分类 113 条草稿里有 24 条受影响）。这里把这两种
+// 罗马数字的写法都覆盖到。
+const UNICODE_ROMAN_NUMERALS = 'ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹⅺⅻ';
+const TIER_SUFFIX = new RegExp(
+  `\\s+(?:(M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))|([${UNICODE_ROMAN_NUMERALS}]))$`,
+  'i',
+);
+
+export function stripTierSuffix(name) {
+  const match = name.match(TIER_SUFFIX);
+  // 两个分支各自一个捕获组（ASCII 罗马数字 match[1] / Unicode 罗马数字字符 match[2]），
+  // 命中哪个分支都算数，只要有一个非空就说明真的匹配到了等级后缀。
+  if (!match || (!match[1] && !match[2])) return name;
+  return name.slice(0, match.index).trim();
 }
 
 export function toTermId(idPrefix, name) {

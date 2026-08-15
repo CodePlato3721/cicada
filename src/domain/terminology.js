@@ -32,10 +32,15 @@ function loadDictionaries() {
   return byGame;
 }
 
-// 中日韩没有空格分词，JS 正则的 \b 是按 \w（只认拉丁字母/数字/下划线）判断边界的，
-// 对 CJK 字符完全不生效，加了反而匹配不到——所以这些语言的正则不加 \b。
-// 其他语言（空格分词）必须加 \b，否则 "flank" 会命中 "Frankly" 中间那一截。
-const CJK_LANGS = new Set(['zh', 'ja', 'ko']);
+// JS 正则的 \b 是按 \w（只认 ASCII 拉丁字母/数字/下划线）判断边界的，任何不在这个字符集
+// 里的文字，\b 都不生效——中日韩文字不在 \w 范围内是一个原因（这几门语言恰好也没有空格
+// 分词，不加 \b 语义上也没问题）；阿拉伯文字符同样不在 \w 范围内，尽管阿拉伯语实际上是
+// 空格分词的，\b 照样会失效——如果误加了 \b，阿拉伯语词条会完全匹配不到（现象跟中日韩
+// 一样，但原因不是"没有空格分词"，是字符集不在 \w 里，这两件事只是在中日韩身上恰好同时
+// 成立，不能把"没有空格分词"当成判断要不要加 \b 的真正标准）。所以这里按"字符集是否被
+// \w 覆盖"来分组，不是按"是否空格分词"分组。
+// 其他语言（拉丁字母、空格分词）必须加 \b，否则 "flank" 会命中 "Frankly" 中间那一截。
+const NO_WORD_BOUNDARY_LANGS = new Set(['zh', 'ja', 'ko', 'ar']);
 
 function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -81,7 +86,7 @@ function buildAutomatons(dictionariesByGame) {
     for (const [lang, items] of byLang) {
       const sorted = [...items].sort((a, b) => b.surface.length - a.surface.length);
       const alternation = sorted.map((item) => escapeRegex(item.surface)).join('|');
-      const boundary = CJK_LANGS.has(lang) ? '' : '\\b';
+      const boundary = NO_WORD_BOUNDARY_LANGS.has(lang) ? '' : '\\b';
       const regex = new RegExp(`${boundary}(?:${alternation})${boundary}`, 'gi');
       const lookup = new Map(sorted.map((item) => [item.surface.toLowerCase(), item.entry]));
       langMap.set(lang, { regex, lookup });

@@ -3,448 +3,579 @@
     "term_id": "HERO_AHMOSE",
     "translations": {
       "en": "Ahmose",
-      "zh": "阿赫摩斯"
+      "zh": "阿赫摩斯",
+      "ko": "아모세",
+      "ar": "أحمس"
     }
   },
   {
     "term_id": "HERO_AISLING",
     "translations": {
       "en": "Aisling",
-      "zh": "艾詩琳"
+      "zh": "艾詩琳",
+      "ko": "애슐린",
+      "ar": "آيسلينغ"
     }
   },
   {
     "term_id": "HERO_ALONSO",
     "translations": {
       "en": "Alonso",
-      "zh": "阿隆索"
+      "zh": "阿隆索",
+      "ko": "알론소",
+      "ar": "ألونسو"
     }
   },
   {
     "term_id": "HERO_BAHITI",
     "translations": {
       "en": "Bahiti",
-      "zh": "巴希提"
+      "zh": "巴希提",
+      "ko": "바히티",
+      "ar": "باهيتي"
     }
   },
   {
     "term_id": "HERO_BLANCHETTE",
     "translations": {
       "en": "Blanchette",
-      "zh": "布蘭琪"
+      "zh": "布蘭琪",
+      "ko": "블랑쉬",
+      "ar": "بلانشيت"
     }
   },
   {
     "term_id": "HERO_BRADLEY",
     "translations": {
       "en": "Bradley",
-      "zh": "布拉德利"
+      "zh": "布拉德利",
+      "ko": "브레들리",
+      "ar": "برادلي"
     }
   },
   {
     "term_id": "HERO_CARA",
     "translations": {
       "en": "Cara",
-      "zh": "卡拉"
+      "zh": "卡拉",
+      "ko": "카라",
+      "ar": "كارا"
     }
   },
   {
     "term_id": "HERO_CHARLIE",
     "translations": {
       "en": "Charlie",
-      "zh": "查理"
+      "zh": "查理",
+      "ko": "찰리",
+      "ar": "تشارلي"
     }
   },
   {
     "term_id": "HERO_CLORIS",
     "translations": {
       "en": "Cloris",
-      "zh": "克勞瑞斯"
+      "zh": "克勞瑞斯",
+      "ko": "클로리스",
+      "ar": "كلوريس"
     }
   },
   {
     "term_id": "HERO_DOMINIC",
     "translations": {
       "en": "Dominic",
-      "zh": "多米尼克"
+      "zh": "多米尼克",
+      "ko": "도미니카",
+      "ar": "دومينيك"
     }
   },
   {
     "term_id": "HERO_EDITH",
     "translations": {
       "en": "Edith",
-      "zh": "艾迪絲"
+      "zh": "艾迪絲",
+      "ko": "에디스",
+      "ar": "إديث"
     }
   },
   {
     "term_id": "HERO_ELEONORA",
     "translations": {
       "en": "Eleonora",
-      "zh": "埃萊奧諾拉"
+      "zh": "埃萊奧諾拉",
+      "ko": "엘레오노라",
+      "ar": "إليونورا"
     }
   },
   {
     "term_id": "HERO_ELIF",
     "translations": {
       "en": "Elif",
-      "zh": "艾麗芙"
+      "zh": "艾麗芙",
+      "ko": "엘리프",
+      "ar": "إليف"
     }
   },
   {
     "term_id": "HERO_ESTRELLA",
     "translations": {
       "en": "Estrella",
-      "zh": "艾絲黛拉"
+      "zh": "艾絲黛拉",
+      "ko": "에스텔라",
+      "ar": "إستريلا"
     }
   },
   {
     "term_id": "HERO_EUGENE",
     "translations": {
       "en": "Eugene",
-      "zh": "尤金"
+      "zh": "尤金",
+      "ko": "유진",
+      "ar": "يوجين"
     }
   },
   {
     "term_id": "HERO_FLINT",
     "translations": {
       "en": "Flint",
-      "zh": "弗林特"
+      "zh": "弗林特",
+      "ko": "플린트",
+      "ar": "فلينت"
     }
   },
   {
     "term_id": "HERO_FLORA",
     "translations": {
       "en": "Flora",
-      "zh": "弗洛拉"
+      "zh": "弗洛拉",
+      "ko": "플로라",
+      "ar": "فلورا"
     }
   },
   {
     "term_id": "HERO_FRED",
     "translations": {
       "en": "Fred",
-      "zh": "弗雷德"
+      "zh": "弗雷德",
+      "ko": "프레드",
+      "ar": "فريد"
     }
   },
   {
     "term_id": "HERO_FREYA",
     "translations": {
       "en": "Freya",
-      "zh": "芙蕾雅"
+      "zh": "芙蕾雅",
+      "ko": "프레야",
+      "ar": "فريا"
     }
   },
   {
     "term_id": "HERO_GATOT",
     "translations": {
       "en": "Gatot",
-      "zh": "加托"
+      "zh": "加托",
+      "ko": "가토",
+      "ar": "جاتوت"
     }
   },
   {
     "term_id": "HERO_GINA",
     "translations": {
       "en": "Gina",
-      "zh": "吉娜"
+      "zh": "吉娜",
+      "ko": "지나",
+      "ar": "جينا"
     }
   },
   {
     "term_id": "HERO_GISELA",
     "translations": {
       "en": "Gisela",
-      "zh": "吉塞拉"
+      "zh": "吉塞拉",
+      "ko": "기젤라",
+      "ar": "جيزيلا"
     }
   },
   {
     "term_id": "HERO_GORDON",
     "translations": {
       "en": "Gordon",
-      "zh": "哥頓"
+      "zh": "哥頓",
+      "ko": "고든",
+      "ar": "جوردون"
     }
   },
   {
     "term_id": "HERO_GREG",
     "translations": {
       "en": "Greg",
-      "zh": "格雷格"
+      "zh": "格雷格",
+      "ko": "그렉",
+      "ar": "جريغ"
     }
   },
   {
     "term_id": "HERO_GREGORY",
     "translations": {
       "en": "Gregory",
-      "zh": "格里高利"
+      "zh": "格里高利",
+      "ko": "그레고리",
+      "ar": "جريجوري"
     }
   },
   {
     "term_id": "HERO_NORAH",
     "translations": {
       "en": "Norah",
-      "zh": "諾拉"
+      "zh": "諾拉",
+      "ko": "노라",
+      "ar": "نوره"
     }
   },
   {
     "term_id": "HERO_GWEN",
     "translations": {
       "en": "Gwen",
-      "zh": "格溫"
+      "zh": "格溫",
+      "ko": "그웬",
+      "ar": "جوين"
     }
   },
   {
     "term_id": "HERO_HANK",
     "translations": {
       "en": "Hank",
-      "zh": "漢克"
+      "zh": "漢克",
+      "ko": "행크",
+      "ar": "هانك"
     }
   },
   {
     "term_id": "HERO_HECTOR",
     "translations": {
       "en": "Hector",
-      "zh": "赫克托"
+      "zh": "赫克托",
+      "ko": "헥터",
+      "ar": "هيكتور"
     }
   },
   {
     "term_id": "HERO_HENDRIK",
     "translations": {
       "en": "Hendrik",
-      "zh": "亨德里克"
+      "zh": "亨德里克",
+      "ko": "헨드릭",
+      "ar": "هيندريك"
     }
   },
   {
     "term_id": "HERO_HERVOR",
     "translations": {
       "en": "Hervor",
-      "zh": "赫爾薇爾"
+      "zh": "赫爾薇爾",
+      "ko": "헤르보르",
+      "ar": "هيرفور"
     }
   },
   {
     "term_id": "HERO_JASSER",
     "translations": {
       "en": "Jasser",
-      "zh": "傑塞爾"
+      "zh": "傑塞爾",
+      "ko": "제셀",
+      "ar": "جاسر"
     }
   },
   {
     "term_id": "HERO_JERONIMO",
     "translations": {
       "en": "Jeronimo",
-      "zh": "赫羅尼莫"
+      "zh": "赫羅尼莫",
+      "ko": "제로니모",
+      "ar": "جيرونيمو"
     }
   },
   {
     "term_id": "HERO_JESSIE",
     "translations": {
       "en": "Jessie",
-      "zh": "杰西"
+      "zh": "杰西",
+      "ko": "제시",
+      "ar": "جيسي"
     }
   },
   {
     "term_id": "HERO_KAROL",
     "translations": {
       "en": "Karol",
-      "zh": "加羅爾"
+      "zh": "加羅爾",
+      "ko": "가로얼",
+      "ar": "كارول"
     }
   },
   {
     "term_id": "HERO_LIGEIA",
     "translations": {
       "en": "Ligeia",
-      "zh": "麗姬婭"
+      "zh": "麗姬婭",
+      "ko": "리지아",
+      "ar": "ليجيا"
     }
   },
   {
     "term_id": "HERO_LING_XUE",
     "translations": {
       "en": "Ling Xue",
-      "zh": "凌雪"
+      "zh": "凌雪",
+      "ko": "료유키",
+      "ar": "لينغ شو"
     }
   },
   {
     "term_id": "HERO_LLOYD",
     "translations": {
       "en": "Lloyd",
-      "zh": "勞埃德"
+      "zh": "勞埃德",
+      "ko": "로이드",
+      "ar": "لويد"
     }
   },
   {
     "term_id": "HERO_LOGAN",
     "translations": {
       "en": "Logan",
-      "zh": "羅根"
+      "zh": "羅根",
+      "ko": "로건",
+      "ar": "لوجان"
     }
   },
   {
     "term_id": "HERO_LUMAK_BOKAN",
     "translations": {
       "en": "Lumak Bokan",
-      "zh": "盧姆·波根"
+      "zh": "盧姆·波根",
+      "ko": "룸 보겐",
+      "ar": "لوماك بوكان"
     }
   },
   {
     "term_id": "HERO_LYNN",
     "translations": {
       "en": "Lynn",
-      "zh": "琳恩"
+      "zh": "琳恩",
+      "ko": "린",
+      "ar": "لين"
     }
   },
   {
     "term_id": "HERO_MAGNUS",
     "translations": {
       "en": "Magnus",
-      "zh": "馬格努斯"
+      "zh": "馬格努斯",
+      "ko": "마그누스",
+      "ar": "ماغنوس"
     }
   },
   {
     "term_id": "HERO_MIA",
     "translations": {
       "en": "Mia",
-      "zh": "米婭"
+      "zh": "米婭",
+      "ko": "미야",
+      "ar": "ميا"
     }
   },
   {
     "term_id": "HERO_MOLLY",
     "translations": {
       "en": "Molly",
-      "zh": "茉莉"
+      "zh": "茉莉",
+      "ko": "몰리",
+      "ar": "مولي"
     }
   },
   {
     "term_id": "HERO_NATALIA",
     "translations": {
       "en": "Natalia",
-      "zh": "娜塔莉亞"
+      "zh": [
+        "娜塔莉亞",
+        "熊女"
+      ],
+      "ko": "나탈리아",
+      "ar": "ناتاليا"
     }
   },
   {
     "term_id": "HERO_PATRICK",
     "translations": {
       "en": "Patrick",
-      "zh": "派翠克"
+      "zh": "派翠克",
+      "ko": "패트릭",
+      "ar": "باتريك"
     }
   },
   {
     "term_id": "HERO_PHILLY",
     "translations": {
       "en": "Philly",
-      "zh": "菲蘭德"
+      "zh": "菲蘭德",
+      "ko": "필리",
+      "ar": "فيلي"
     }
   },
   {
     "term_id": "HERO_REINA",
     "translations": {
       "en": "Reina",
-      "zh": "玲奈"
+      "zh": "玲奈",
+      "ko": "레이나",
+      "ar": "رينا"
     }
   },
   {
     "term_id": "HERO_RENEE",
     "translations": {
       "en": "Renee",
-      "zh": "芮妮"
+      "zh": "芮妮",
+      "ko": "레니",
+      "ar": "رينيه"
     }
   },
   {
     "term_id": "HERO_RUFUS",
     "translations": {
       "en": "Rufus",
-      "zh": "魯弗斯"
+      "zh": "魯弗斯",
+      "ko": "루퍼스",
+      "ar": "روفوس"
     }
   },
   {
     "term_id": "HERO_SEIGEL",
     "translations": {
       "en": "Seigel",
-      "zh": "西格爾"
+      "zh": "西格爾",
+      "ko": "시걸",
+      "ar": "سيغل"
     }
   },
   {
     "term_id": "HERO_SEO_YOON",
     "translations": {
       "en": "Seo-yoon",
-      "zh": "書允"
+      "zh": "書允",
+      "ko": "서윤",
+      "ar": "سيو يون"
     }
   },
   {
     "term_id": "HERO_SERGEY",
     "translations": {
       "en": "Sergey",
-      "zh": "謝爾蓋"
+      "zh": "謝爾蓋",
+      "ko": "세르게이",
+      "ar": "سيرجي"
     }
   },
   {
     "term_id": "HERO_SMITH",
     "translations": {
       "en": "Smith",
-      "zh": "史密斯"
+      "zh": "史密斯",
+      "ko": "스미스",
+      "ar": "الحداد"
     }
   },
   {
     "term_id": "HERO_SONYA",
     "translations": {
       "en": "Sonya",
-      "zh": "索妮婭"
+      "zh": "索妮婭",
+      "ko": "소냐",
+      "ar": "سونيا"
     }
   },
   {
     "term_id": "HERO_URSAR",
     "translations": {
       "en": "Ursar",
-      "zh": "烏爾撒"
+      "zh": "烏爾撒",
+      "ko": "우르사",
+      "ar": "أورصار"
     }
   },
   {
     "term_id": "HERO_VIVECA",
     "translations": {
       "en": "Viveca",
-      "zh": "維薇卡"
+      "zh": "維薇卡",
+      "ko": "비비카",
+      "ar": "فيفيكا"
     }
   },
   {
     "term_id": "HERO_VULCANUS",
     "translations": {
       "en": "Vulcanus",
-      "zh": "烏爾卡努斯"
+      "zh": "烏爾卡努斯",
+      "ko": "올카누스",
+      "ar": "فولكانوس"
     }
   },
   {
     "term_id": "HERO_WAYNE",
     "translations": {
       "en": "Wayne",
-      "zh": "韋恩"
+      "zh": "韋恩",
+      "ko": "웨인",
+      "ar": "واين"
     }
   },
   {
     "term_id": "HERO_WU_MING",
     "translations": {
       "en": "Wu Ming",
-      "zh": "無名"
+      "zh": "無名",
+      "ko": "무명",
+      "ar": "وو مينغ"
     }
   },
   {
     "term_id": "HERO_XURA",
     "translations": {
       "en": "Xura",
-      "zh": "修拉"
+      "zh": "修拉",
+      "ko": "쇠라",
+      "ar": "شورا"
     }
   },
   {
     "term_id": "HERO_ZINMAN",
     "translations": {
       "en": "Zinman",
-      "zh": "津曼"
+      "zh": "津曼",
+      "ko": "진먼",
+      "ar": "زينمان"
     }
   },
   {
     "term_id": "EVENT_ALLIANCE_MOBILIZATION",
     "translations": {
       "en": "Alliance Mobilization",
-      "zh": "聯盟總動員"
+      "zh": "聯盟總動員",
+      "ko": "연맹 총동원",
+      "ar": "تعبئة التحالف"
     }
   },
   {
     "term_id": "EVENT_BEAR_HUNT",
     "translations": {
       "en": "Bear Hunt",
-      "zh": "獵熊行動"
+      "zh": "獵熊行動",
+      "ko": "곰 사냥 작전",
+      "ar": "صيد الدببة"
     }
   },
   {
@@ -458,154 +589,2709 @@
     "term_id": "EVENT_CANYON_CLASH",
     "translations": {
       "en": "Canyon Clash",
-      "zh": "峽谷會戰"
+      "zh": "峽谷會戰",
+      "ar": "صراع الوادي"
     }
   },
   {
     "term_id": "EVENT_CRAZY_JOE",
     "translations": {
       "en": "Crazy Joe",
-      "zh": "瘋狂的喬伊"
+      "zh": "瘋狂的喬伊",
+      "ko": "미치광이 조이",
+      "ar": "جو المجنون"
     }
   },
   {
     "term_id": "EVENT_DEADSHOT",
     "translations": {
       "en": "Deadshot",
-      "zh": "正中靶心"
+      "zh": "正中靶心",
+      "ko": "중앙 적중"
     }
   },
   {
     "term_id": "EVENT_FLAME_AND_FANG",
     "translations": {
       "en": "Flame and Fang",
-      "zh": "烈焰與獠牙"
+      "zh": "烈焰與獠牙",
+      "ko": "불꽃과 송곳니",
+      "ar": "اللهيب و الأنياب"
     }
   },
   {
     "term_id": "EVENT_FOUNDRY_BATTLE",
     "translations": {
       "en": "Foundry Battle",
-      "zh": "兵工廠爭奪戰"
+      "zh": "兵工廠爭奪戰",
+      "ko": "무기공장 쟁탈전",
+      "ar": "معركة مسبك الأسلحة"
     }
   },
   {
     "term_id": "EVENT_FROSTY_FORTUNE",
     "translations": {
       "en": "Frosty Fortune",
-      "zh": "冰封的寶藏"
+      "zh": "冰封的寶藏",
+      "ko": "얼어붙은 금고",
+      "ar": "ثروة متجمدة"
     }
   },
   {
     "term_id": "EVENT_GINA_S_REVENGE",
     "translations": {
       "en": "Gina's Revenge",
-      "zh": "吉娜的復仇"
+      "zh": "吉娜的復仇",
+      "ko": "지나의 복수",
+      "ar": "انتقام جينا"
     }
   },
   {
     "term_id": "EVENT_HALL_OF_HEROES",
     "translations": {
       "en": "Hall of Heroes",
-      "zh": "英雄殿堂"
+      "zh": "英雄殿堂",
+      "ko": "영웅의 전당",
+      "ar": "قاعة الأبطال"
     }
   },
   {
     "term_id": "EVENT_HERO_RALLY",
     "translations": {
       "en": "Hero Rally",
-      "zh": "英雄集結"
+      "zh": "英雄集結",
+      "ko": "영웅 집결",
+      "ar": "حشد البطل"
     }
   },
   {
     "term_id": "EVENT_HERO_S_MISSION",
     "translations": {
       "en": "Hero's Mission",
-      "zh": "英雄的使命"
+      "zh": "英雄的使命",
+      "ko": "영웅의 사명",
+      "ar": "مهمة البطل"
     }
   },
   {
     "term_id": "EVENT_JOURNEY_OF_LIGHT",
     "translations": {
       "en": "Journey of Light",
-      "zh": "逐光之旅"
+      "zh": "逐光之旅",
+      "ko": "빛을 쫓는 여행"
     }
   },
   {
     "term_id": "EVENT_KING_OF_ICEFIELD",
     "translations": {
       "en": "King of Icefield",
-      "zh": "凍土之王"
+      "zh": "凍土之王",
+      "ko": "빙원의 왕",
+      "ar": "ملك الحقل الجليدي"
     }
   },
   {
     "term_id": "EVENT_MERCENARY_PRESTIGE",
     "translations": {
       "en": "Mercenary Prestige",
-      "zh": "傭兵榮耀"
+      "zh": "傭兵榮耀",
+      "ko": "용병 명예",
+      "ar": "هيبة المرتزقة"
     }
   },
   {
     "term_id": "EVENT_OFFICER_PROJECT",
     "translations": {
       "en": "Officer Project",
-      "zh": "士官計畫"
+      "zh": "士官計畫",
+      "ko": "사관의 계획",
+      "ar": "مسؤول المشروع"
     }
   },
   {
     "term_id": "EVENT_SNOWBUSTERS",
     "translations": {
       "en": "Snowbusters",
-      "zh": "除雪小隊"
+      "zh": "除雪小隊",
+      "ko": "제설 특공대",
+      "ar": "كاسر الثلوج"
     }
   },
   {
     "term_id": "EVENT_STATE_MERGER",
     "translations": {
       "en": "State Merger",
-      "zh": "王國合併"
+      "zh": "王國合併",
+      "ko": "왕국 합병",
+      "ar": "دمج المقاطعة"
     }
   },
   {
     "term_id": "EVENT_SUNFIRE_CASTLE",
     "translations": {
       "en": "Sunfire Castle",
-      "zh": "決戰王城"
+      "zh": "決戰王城",
+      "ko": "캐슬 전투",
+      "ar": "قلعة نار الشمس"
     }
   },
   {
     "term_id": "EVENT_SVS",
     "translations": {
-      "en": "SVS",
-      "zh": "SVS"
+      "en": [
+        "SVS",
+        "State Of Power"
+      ],
+      "zh": [
+        "最強王國",
+        "SVS"
+      ]
     }
   },
   {
     "term_id": "EVENT_TREASURE_HUNTER",
     "translations": {
       "en": "Treasure Hunter",
-      "zh": "秘寶獵人"
+      "zh": "秘寶獵人",
+      "ko": "비보 사냥꾼",
+      "ar": "صائد الكنوز"
     }
   },
   {
     "term_id": "EVENT_TUNDRA_TRADING_STATION",
     "translations": {
       "en": "Tundra Trading Station",
-      "zh": "雪原貿易站"
+      "zh": "雪原貿易站",
+      "ko": "설원 거래소",
+      "ar": "محطة تداول الحقل الثلجي"
     }
   },
   {
     "term_id": "EVENT_VAULT_OF_ENIGMA",
     "translations": {
       "en": "Vault Of Enigma",
-      "zh": "神秘藏寶室"
+      "zh": "神秘藏寶室",
+      "ko": "비보의 금고",
+      "ar": "خزنة انيجما"
     }
   },
   {
     "term_id": "EVENT_WEEKLY_BENEFITS_CARD",
     "translations": {
       "en": "Weekly Benefits Card",
-      "zh": "優惠週卡"
+      "zh": "優惠週卡",
+      "ko": "혜택 주간카드",
+      "ar": "بطاقة المزايا الأسبوعية"
+    }
+  },
+  {
+    "term_id": "RESEARCH_LANCER_ARMOR",
+    "translations": {
+      "en": "Lancer Armor",
+      "zh": "矛兵護甲I",
+      "ko": "창병 방어",
+      "ar": "I درع رامي الرماح"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MARKSMAN_ARMOR",
+    "translations": {
+      "en": "Marksman Armor",
+      "zh": "射手護甲I",
+      "ko": "궁병 갑옷",
+      "ar": "I درع الرماة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_LANCER_UPGRADE",
+    "translations": {
+      "en": "Lancer Upgrade",
+      "zh": "長矛改良I",
+      "ko": "창 개조",
+      "ar": "I ترقية الرمح"
+    }
+  },
+  {
+    "term_id": "RESEARCH_TARGETED_SNIPING",
+    "translations": {
+      "en": "Targeted Sniping",
+      "zh": "定點狙擊I",
+      "ko": "정점 저격",
+      "ar": "I القنص المستهدف"
+    }
+  },
+  {
+    "term_id": "RESEARCH_REGIMENTAL_EXPANSION",
+    "translations": {
+      "en": "Regimental Expansion",
+      "zh": "編制擴展I",
+      "ko": "편성 확장",
+      "ar": "I توسع الفوج"
+    }
+  },
+  {
+    "term_id": "RESEARCH_ASSAUT_TECHNIQUES",
+    "translations": {
+      "en": "Assaut Techniques",
+      "zh": "突擊特訓I",
+      "ko": "돌격 특훈",
+      "ar": "I تقنيات الاعتداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_SURVIVAL_TECHNIQUES",
+    "translations": {
+      "en": "Survival Techniques",
+      "zh": "生存特訓I",
+      "ko": "생존 특훈",
+      "ar": "I تقنيات البقاء علي قيد الحياة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BULWARK_FORMATIONS",
+    "translations": {
+      "en": "Bulwark Formations",
+      "zh": "堅守陣地I",
+      "ko": "진지 방어",
+      "ar": "I تشكيلات الحصن"
+    }
+  },
+  {
+    "term_id": "RESEARCH_PICKET_LINES",
+    "translations": {
+      "en": "Picket Lines",
+      "zh": "警戒隊形I",
+      "ko": "경계 대형",
+      "ar": "I خطوط الاعتصام"
+    }
+  },
+  {
+    "term_id": "RESEARCH_SHIELD_UPGRADE",
+    "translations": {
+      "en": "Shield Upgrade",
+      "zh": "盾牌改良I",
+      "ko": "방패 개조",
+      "ar": "I ترقية الدرع"
+    }
+  },
+  {
+    "term_id": "RESEARCH_DEFENSIVE_FORMATION",
+    "translations": {
+      "en": "Defensive Formation",
+      "zh": "防禦陣型I",
+      "ko": "방어 라인업",
+      "ar": "I تشكيلات دفاعية"
+    }
+  },
+  {
+    "term_id": "RESEARCH_SKIRMISHING",
+    "translations": {
+      "en": "Skirmishing",
+      "zh": "迅猛突刺I",
+      "ko": "신속 돌격",
+      "ar": "I مناوشات"
+    }
+  },
+  {
+    "term_id": "RESEARCH_PRECISION_TARGETING",
+    "translations": {
+      "en": "Precision Targeting",
+      "zh": "精準射擊I",
+      "ko": "정밀 사격",
+      "ar": "I استهداف دقيق"
+    }
+  },
+  {
+    "term_id": "RESEARCH_CLOSE_COMBAT",
+    "translations": {
+      "en": "Close Combat",
+      "zh": "不懈奮戰I",
+      "ko": "피의 전투",
+      "ar": "I قتال قريب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_REPRISAL_TACTICS",
+    "translations": {
+      "en": "Reprisal Tactics",
+      "zh": "穩守反擊I",
+      "ko": "반격 방어",
+      "ar": "I تكتيكات الانتقام"
+    }
+  },
+  {
+    "term_id": "RESEARCH_SPECIAL_DEFENSIVE_TRAINING",
+    "translations": {
+      "en": "Special Defensive Training",
+      "zh": "防禦特訓I",
+      "ko": "방어 특훈",
+      "ar": "I التدريب الدفاعي الخاص"
+    }
+  },
+  {
+    "term_id": "RESEARCH_COMMAND_TACTICS",
+    "translations": {
+      "en": "Command Tactics",
+      "zh": "指揮藝術",
+      "ko": "지휘술",
+      "ar": "I تكتيكات القيادة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_TRAINER_TOOLS",
+    "translations": {
+      "en": "Trainer Tools",
+      "zh": "訓練器材",
+      "ko": "훈련 기구",
+      "ar": "I أدوات المدرب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BANDAGING",
+    "translations": {
+      "en": "Bandaging",
+      "zh": "包紮術",
+      "ko": "붕대술",
+      "ar": "I الضمادات"
+    }
+  },
+  {
+    "term_id": "RESEARCH_TOOL_ENHANCEMENT",
+    "translations": {
+      "en": "Tool Enhancement",
+      "zh": "器材改進",
+      "ko": "기자재 개선",
+      "ar": "I تحسين الأدوات"
+    }
+  },
+  {
+    "term_id": "RESEARCH_CAMP_EXPANSION",
+    "translations": {
+      "en": "Camp Expansion",
+      "zh": "兵營擴建",
+      "ko": "병영 확장",
+      "ar": "I توسعة المعسكر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_WARD_EXPANSION",
+    "translations": {
+      "en": "Ward Expansion",
+      "zh": "病房擴建",
+      "ko": "병실 확장",
+      "ar": "I توسعة المستشفي"
+    }
+  },
+  {
+    "term_id": "RESEARCH_TOOLING_UP",
+    "translations": {
+      "en": "Tooling Up",
+      "zh": "工具改良",
+      "ko": "도구 개조",
+      "ar": "I إعداد الأدوات"
+    }
+  },
+  {
+    "term_id": "RESEARCH_FLAME_SQUAD",
+    "translations": {
+      "en": "Flame Squad",
+      "zh": "烈焰戰隊",
+      "ko": "불꽃 부대",
+      "ar": "فرقة اللهيب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_FLAME_STRIKE",
+    "translations": {
+      "en": "Flame Strike",
+      "zh": "怒焰猛擊",
+      "ko": "불꽃 공격",
+      "ar": "ضربة اللهيب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_FLAME_SHIELD",
+    "translations": {
+      "en": "Flame Shield",
+      "zh": "怒焰堅盾",
+      "ko": "불꽃 방패",
+      "ar": "درع اللهيب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_FLAME_LEGION",
+    "translations": {
+      "en": "Flame Legion",
+      "zh": "烈焰軍團",
+      "ko": "불꽃 군단",
+      "ar": "فيلق اللهيب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_FLAME_PROTECTION",
+    "translations": {
+      "en": "Flame Protection",
+      "zh": "怒焰護佑",
+      "ko": "불꽃 수호",
+      "ar": "حماية اللهيب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_FLAME_TOMAHAWK",
+    "translations": {
+      "en": "Flame Tomahawk",
+      "zh": "怒焰戰斧",
+      "ko": "불꽃 도끼",
+      "ar": "توماهوك اللهيب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_INFANTRY",
+    "translations": {
+      "en": "Helios Infantry",
+      "zh": "烈日盾兵",
+      "ko": "헬리오스 방패병",
+      "ar": "مشاة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_INFANTRY_FIRST_AID",
+    "translations": {
+      "en": "Helios Infantry First Aid",
+      "zh": "烈日盾兵急救",
+      "ko": "헬리오스 방패병 구급",
+      "ar": "الإسعافات الأولية لمشاة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_INFANTRY_HEALING",
+    "translations": {
+      "en": "Helios Infantry Healing",
+      "zh": "烈日盾兵治療",
+      "ko": "헬리오스 방패병 치료",
+      "ar": "شفاء مشاة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_INFANTRY_TRAINING",
+    "translations": {
+      "en": "Helios Infantry Training",
+      "zh": "烈日盾兵訓練",
+      "ko": "헬리오스 방패병 훈련",
+      "ar": "تدريب مشاة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_CRYSTAL_VISION",
+    "translations": {
+      "en": "Crystal Vision",
+      "zh": "燃晶視界",
+      "ko": "수정의 시야",
+      "ar": "رؤية الكريستال"
+    }
+  },
+  {
+    "term_id": "RESEARCH_CRYSTAL_ARMOR",
+    "translations": {
+      "en": "Crystal Armor",
+      "zh": "燃晶鳞甲",
+      "ko": "수정 갑옷",
+      "ar": "درع الكريستال"
+    }
+  },
+  {
+    "term_id": "RESEARCH_CRYSTAL_PROTECTION",
+    "translations": {
+      "en": "Crystal Protection",
+      "zh": "燃晶庇佑",
+      "ko": "수정의 가호",
+      "ar": "حماية الكريستال"
+    }
+  },
+  {
+    "term_id": "RESEARCH_CRYSTAL_ARROW",
+    "translations": {
+      "en": "Crystal Arrow",
+      "zh": "燃晶矢石",
+      "ko": "수정 화살",
+      "ar": "سهم الكريستال"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_MARKSMAN",
+    "translations": {
+      "en": "Helios Marksman",
+      "zh": "烈日射手",
+      "ko": "헬리오스 궁병",
+      "ar": "رماة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_MARKSMAN_FIRST_AID",
+    "translations": {
+      "en": "Helios Marksman First Aid",
+      "zh": "烈日射手急救",
+      "ko": "헬리오스 궁병 구급",
+      "ar": "الإسعافات الأولية لرماة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_MARKSMAN_HEALING",
+    "translations": {
+      "en": "Helios Marksman Healing",
+      "zh": "烈日射手治療",
+      "ko": "헬리오스 궁병 치료",
+      "ar": "شفاء رماة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_MARKSMAN_TRAINING",
+    "translations": {
+      "en": "Helios Marksman Training",
+      "zh": "烈日射手訓練",
+      "ko": "헬리오스 궁병 훈련",
+      "ar": "تدريب رماة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BLAZING_CHARGE",
+    "translations": {
+      "en": "Blazing Charge",
+      "zh": "熾烈衝鋒",
+      "ko": "불의 돌격",
+      "ar": "الهجوم الملتهب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BLAZING_ARMOR",
+    "translations": {
+      "en": "Blazing Armor",
+      "zh": "熾烈護甲",
+      "ko": "불의 방어",
+      "ar": "الدرع الملتهب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BLAZING_GUARDIAN",
+    "translations": {
+      "en": "Blazing Guardian",
+      "zh": "熾烈守護",
+      "ko": "불의 수호",
+      "ar": "الحارس الملتهب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BLAZING_LANCE",
+    "translations": {
+      "en": "Blazing Lance",
+      "zh": "熾烈戰矛",
+      "ko": "불의 창",
+      "ar": "الرمح الملتهب"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_LANCER",
+    "translations": {
+      "en": "Helios Lancer",
+      "zh": "烈日矛兵",
+      "ko": "헬리오스 창병",
+      "ar": "رماة رماح هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_LANCER_FIRST_AID",
+    "translations": {
+      "en": "Helios Lancer First Aid",
+      "zh": "烈日矛兵急救",
+      "ko": "헬리오스 궁병 구급",
+      "ar": "الإسعافات الأولية لرماة هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_LANCER_HEALING",
+    "translations": {
+      "en": "Helios Lancer Healing",
+      "zh": "烈日矛兵治療",
+      "ko": "헬리오스 창병 치료",
+      "ar": "شفاء رامي رماح هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELIOS_LANCER_TRAINING",
+    "translations": {
+      "en": "Helios Lancer Training",
+      "zh": "烈日矛兵訓練",
+      "ko": "헬리오스 창병 훈련",
+      "ar": "تدريب رماة رماح هيليوس"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_BLUNDERBUSS",
+    "translations": {
+      "en": "Exalted Blunderbuss",
+      "zh": "煌耀鐵銃",
+      "ko": "광휘의 화승총",
+      "ar": "بندقية الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_CADENCE",
+    "translations": {
+      "en": "Exalted Cadence",
+      "zh": "煌耀舞步",
+      "ko": "광휘의 춤",
+      "ar": "إيقاع الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_WAR_GARB",
+    "translations": {
+      "en": "Exalted War Garb",
+      "zh": "煌耀戰衣",
+      "ko": "광휘의 전투복",
+      "ar": "زي الحرب الرفيع"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_MANTLE",
+    "translations": {
+      "en": "Exalted Mantle",
+      "zh": "煌耀肩甲",
+      "ko": "광휘의 망토",
+      "ar": "رداء الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_VEIL",
+    "translations": {
+      "en": "Exalted Veil",
+      "zh": "煌耀面紗",
+      "ko": "광휘의 베일",
+      "ar": "حجاب الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_GRIPS",
+    "translations": {
+      "en": "Molten Grips",
+      "zh": "炎鑄之手",
+      "ko": "염주의 손",
+      "ar": "القبضات المنصهرة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_SCALES",
+    "translations": {
+      "en": "Molten Scales",
+      "zh": "炎鑄鱗甲",
+      "ko": "염주 비늘 갑옷",
+      "ar": "الحراشف المنصهرة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_SHARPSHOOTING",
+    "translations": {
+      "en": "Molten Sharpshooting",
+      "zh": "炎鑄射士",
+      "ko": "염주 궁수",
+      "ar": "القنص المنصهر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_SHOT",
+    "translations": {
+      "en": "Molten Shot",
+      "zh": "炎鑄戰銃",
+      "ko": "염주 전투총",
+      "ar": "الطلقة المنصهرة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_STARFIRE",
+    "translations": {
+      "en": "Starfire",
+      "zh": "熾火燧星",
+      "ko": "타오르는 별",
+      "ar": "الصوان المنصهر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_MARKSMAN_HEALING",
+    "translations": {
+      "en": "Exalted Marksman Healing",
+      "zh": "煌耀射手治療",
+      "ko": "광휘의 궁병 치료",
+      "ar": "شفاء الرماة الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_MARKSMAN_FIRST_AID",
+    "translations": {
+      "en": "Exalted Marksman First Aid",
+      "zh": "煌耀射手急救",
+      "ko": "광휘의 궁병 구급",
+      "ar": "الإسعافات الأولية للرماة الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_MARKSMAN_TRAINING",
+    "translations": {
+      "en": "Exalted Marksman Training",
+      "zh": "煌耀射手訓練",
+      "ko": "광휘의 궁병 훈련",
+      "ar": "تدريب الرماة الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_SOLAR_SUPREMACY",
+    "translations": {
+      "en": "Solar Supremacy",
+      "zh": "烈陽雄師",
+      "ko": "태양 정예군",
+      "ar": "السيادة الشمسية"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_ARMAMENT",
+    "translations": {
+      "en": "Exalted Armament",
+      "zh": "煌耀武裝",
+      "ko": "광휘의 무장",
+      "ar": "تجهيزات الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_TREK",
+    "translations": {
+      "en": "Exalted Trek",
+      "zh": "煌耀征程",
+      "ko": "광휘의 여정",
+      "ar": "سفر الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_BASTION",
+    "translations": {
+      "en": "Exalted Bastion",
+      "zh": "煌耀堅壘",
+      "ko": "광휘의 요새",
+      "ar": "معسكر القاعدة الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_SHOULDERGUARD",
+    "translations": {
+      "en": "Exalted Shoulderguard",
+      "zh": "煌耀肩盾",
+      "ko": "광휘의 어깨 방패",
+      "ar": "واقي كتف الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_HELM",
+    "translations": {
+      "en": "Exalted Helm",
+      "zh": "煌耀戰盔",
+      "ko": "광휘의 투구",
+      "ar": "خوذة الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_SHIELDS",
+    "translations": {
+      "en": "Molten Shields",
+      "zh": "炎鑄堅盾",
+      "ko": "염주 방패",
+      "ar": "I الدروع المنصهرة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_PLATING",
+    "translations": {
+      "en": "Molten Plating",
+      "zh": "炎鑄板甲",
+      "ko": "염주 판금갑옷",
+      "ar": "I الصفيح المنصهر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_GUARD",
+    "translations": {
+      "en": "Molten Guard",
+      "zh": "炎鑄鐵衛",
+      "ko": "염주 철위대",
+      "ar": "I الواقي المنصهر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_BLADES",
+    "translations": {
+      "en": "Molten Blades",
+      "zh": "炎鑄戰刃",
+      "ko": "염주 글레이브",
+      "ar": "I الشفرات المنصهرة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_INDOMITABLE_WALL",
+    "translations": {
+      "en": "Indomitable Wall",
+      "zh": "不朽之壁",
+      "ko": "불멸의 벽",
+      "ar": "الجدار الذي لا يقهر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_INFANTRY_FIRST_AID",
+    "translations": {
+      "en": "Exalted Infantry First Aid",
+      "zh": "煌耀盾兵急救",
+      "ko": "광휘의 방패병 구급",
+      "ar": "الإسعافات الأولية للمشاة الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_INFANTRY_HEALING",
+    "translations": {
+      "en": "Exalted Infantry Healing",
+      "zh": "煌耀盾兵治療",
+      "ko": "광휘의 방패병 치료",
+      "ar": "شفاء المشاة الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_INFANTRY_TRAINING",
+    "translations": {
+      "en": "Exalted Infantry Training",
+      "zh": "煌耀盾兵訓練",
+      "ko": "광휘의 방패병 훈련",
+      "ar": "تدريب المشاة الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_PIKE",
+    "translations": {
+      "en": "Exalted Pike",
+      "zh": "煌耀銳戟",
+      "ko": "광휘의 창",
+      "ar": "رمح الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_WARPATH",
+    "translations": {
+      "en": "Exalted Warpath",
+      "zh": "煌耀戰途",
+      "ko": "광휘의 전장",
+      "ar": "درب الحرب الرفيع"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_PLATEMAIL",
+    "translations": {
+      "en": "Exalted Platemail",
+      "zh": "煌耀重甲",
+      "ko": "광휘의 갑옷",
+      "ar": "درع الصفائح الرفيع"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_PAULDRON",
+    "translations": {
+      "en": "Exalted Pauldron",
+      "zh": "煌耀肩鎧",
+      "ko": "광휘의 견갑",
+      "ar": "كتف الرفعة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_WARCROWN",
+    "translations": {
+      "en": "Exalted Warcrown",
+      "zh": "煌耀戰冕",
+      "ko": "광휘의 왕관",
+      "ar": "تاج الحرب الرفيع"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_VAMBRACE",
+    "translations": {
+      "en": "Molten Vambrace",
+      "zh": "炎鑄之臂",
+      "ko": "염주의 팔",
+      "ar": "درع الساعد المنصهر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_HELMETS",
+    "translations": {
+      "en": "Molten Helmets",
+      "zh": "炎鑄鐵冑",
+      "ko": "염주 철투구",
+      "ar": "الخوذات المنصهرة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_TACTICS",
+    "translations": {
+      "en": "Molten Tactics",
+      "zh": "炎鑄尖兵",
+      "ko": "염주 첨병",
+      "ar": "التكتيكات المنصهرة"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MOLTEN_LANCE",
+    "translations": {
+      "en": "Molten Lance",
+      "zh": "炎鑄槍鋒",
+      "ko": "염주 창끝",
+      "ar": "الرمح المنصهر"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MERIDIAN_PHALANX",
+    "translations": {
+      "en": "Meridian Phalanx",
+      "zh": "烈輝戰陣",
+      "ko": "불타는 광휘의 전열",
+      "ar": "فيلق اللهب الساطع"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_LANCER_HEALING",
+    "translations": {
+      "en": "Exalted Lancer Healing",
+      "zh": "煌耀矛兵治療",
+      "ko": "광휘의 창병 치료",
+      "ar": "شفاء رماة الرمح الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_LANCER_FIRST_AID",
+    "translations": {
+      "en": "Exalted Lancer First Aid",
+      "zh": "煌耀矛兵急救",
+      "ko": "광휘의 창병 구급",
+      "ar": "الإسعافات الأولية لرماة الرمح الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_EXALTED_LANCER_TRAINING",
+    "translations": {
+      "en": "Exalted Lancer Training",
+      "zh": "煌耀矛兵訓練",
+      "ko": "광휘의 창병 훈련",
+      "ar": "تدريب رماة الرمح الأشداء"
+    }
+  },
+  {
+    "term_id": "RESEARCH_INFANTRY_TRAINING",
+    "translations": {
+      "en": "Infantry Training",
+      "zh": "盾兵訓練"
+    }
+  },
+  {
+    "term_id": "RESEARCH_INFANTRY_HEALING",
+    "translations": {
+      "en": "Infantry Healing",
+      "zh": "盾兵治療"
+    }
+  },
+  {
+    "term_id": "RESEARCH_INFANTRY_FIRST_AID",
+    "translations": {
+      "en": "Infantry First Aid",
+      "zh": "盾兵急救"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MARKSMAN_TRAINING",
+    "translations": {
+      "en": "Marksman Training",
+      "zh": "射手訓練"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MARKSMAN_HEALING",
+    "translations": {
+      "en": "Marksman Healing",
+      "zh": "射手治療"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MARKSMAN_FIRST_AID",
+    "translations": {
+      "en": "Marksman First Aid",
+      "zh": "射手急救"
+    }
+  },
+  {
+    "term_id": "RESEARCH_LANCER_TRAINING",
+    "translations": {
+      "en": "Lancer Training",
+      "zh": "矛兵訓練"
+    }
+  },
+  {
+    "term_id": "RESEARCH_LANCER_HEALING",
+    "translations": {
+      "en": "Lancer Healing",
+      "zh": "矛兵治療"
+    }
+  },
+  {
+    "term_id": "RESEARCH_LANCER_FIRST_AID",
+    "translations": {
+      "en": "Lancer First Aid",
+      "zh": "矛兵急救"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BLUNDERBUSS",
+    "translations": {
+      "en": "Blunderbuss",
+      "zh": "鐵銃"
+    }
+  },
+  {
+    "term_id": "RESEARCH_CADENCE",
+    "translations": {
+      "en": "Cadence",
+      "zh": "舞步"
+    }
+  },
+  {
+    "term_id": "RESEARCH_WAR_GARB",
+    "translations": {
+      "en": "War Garb",
+      "zh": "戰衣"
+    }
+  },
+  {
+    "term_id": "RESEARCH_MANTLE",
+    "translations": {
+      "en": "Mantle",
+      "zh": "肩甲"
+    }
+  },
+  {
+    "term_id": "RESEARCH_VEIL",
+    "translations": {
+      "en": "Veil",
+      "zh": "面紗"
+    }
+  },
+  {
+    "term_id": "RESEARCH_ARMAMENT",
+    "translations": {
+      "en": "Armament",
+      "zh": "武裝"
+    }
+  },
+  {
+    "term_id": "RESEARCH_TREK",
+    "translations": {
+      "en": "Trek",
+      "zh": "征程"
+    }
+  },
+  {
+    "term_id": "RESEARCH_BASTION",
+    "translations": {
+      "en": "Bastion",
+      "zh": "堅壘"
+    }
+  },
+  {
+    "term_id": "RESEARCH_SHOULDERGUARD",
+    "translations": {
+      "en": "Shoulderguard",
+      "zh": "肩盾"
+    }
+  },
+  {
+    "term_id": "RESEARCH_HELM",
+    "translations": {
+      "en": "Helm",
+      "zh": "戰盔"
+    }
+  },
+  {
+    "term_id": "RESEARCH_PIKE",
+    "translations": {
+      "en": "Pike",
+      "zh": "銳戟"
+    }
+  },
+  {
+    "term_id": "RESEARCH_WARPATH",
+    "translations": {
+      "en": "Warpath",
+      "zh": "戰途"
+    }
+  },
+  {
+    "term_id": "RESEARCH_PLATEMAIL",
+    "translations": {
+      "en": "Platemail",
+      "zh": "重甲"
+    }
+  },
+  {
+    "term_id": "RESEARCH_PAULDRON",
+    "translations": {
+      "en": "Pauldron",
+      "zh": "肩鎧"
+    }
+  },
+  {
+    "term_id": "RESEARCH_WARCROWN",
+    "translations": {
+      "en": "Warcrown",
+      "zh": "戰冕"
+    }
+  },
+  {
+    "term_id": "BUILDING_ENLISTMENT_OFFICE",
+    "translations": {
+      "en": "Enlistment Office",
+      "zh": "募兵所",
+      "ko": "모병소",
+      "ar": "مكتب التجنيد"
+    }
+  },
+  {
+    "term_id": "BUILDING_BARRICADE",
+    "translations": {
+      "en": "Barricade",
+      "zh": "城牆",
+      "ko": "성벽",
+      "ar": "المتراس"
+    }
+  },
+  {
+    "term_id": "BUILDING_MARKSMAN_CAMP",
+    "translations": {
+      "en": "Marksman Camp",
+      "zh": "射手營",
+      "ko": "궁병 병영",
+      "ar": "معسكر الرماية"
+    }
+  },
+  {
+    "term_id": "BUILDING_LANCER_CAMP",
+    "translations": {
+      "en": "Lancer Camp",
+      "zh": "矛兵營",
+      "ko": "창병 병영",
+      "ar": "معسكر رماة الرمح"
+    }
+  },
+  {
+    "term_id": "BUILDING_INFANTRY_CAMP",
+    "translations": {
+      "en": "Infantry Camp",
+      "zh": "盾兵營",
+      "ko": "방패병 병영",
+      "ar": "معسكر المشاة"
+    }
+  },
+  {
+    "term_id": "BUILDING_RESEARCH_CENTER",
+    "translations": {
+      "en": "Research Center",
+      "zh": "科技研究所",
+      "ko": "연구소",
+      "ar": "مركز البحوث"
+    }
+  },
+  {
+    "term_id": "BUILDING_INFIRMARY",
+    "translations": {
+      "en": "Infirmary",
+      "zh": "軍醫所",
+      "ko": "의무실",
+      "ar": "المستوصف"
+    }
+  },
+  {
+    "term_id": "BUILDING_COMMAND_CENTER",
+    "translations": {
+      "en": "Command Center",
+      "zh": "指揮部",
+      "ko": "지휘부",
+      "ar": "مركز القيادة"
+    }
+  },
+  {
+    "term_id": "BUILDING_EMBASSY",
+    "translations": {
+      "en": "Embassy",
+      "zh": "大使館",
+      "ko": "대사관",
+      "ar": "السفارة"
+    }
+  },
+  {
+    "term_id": "BUILDING_STOREHOUSE",
+    "translations": {
+      "en": "Storehouse",
+      "zh": "倉庫",
+      "ko": "창고",
+      "ar": "المستودع"
+    }
+  },
+  {
+    "term_id": "BUILDING_FURNACE",
+    "translations": {
+      "en": "Furnace",
+      "zh": "熔爐",
+      "ko": "용광로",
+      "ar": "حجرة الاحتراق"
+    }
+  },
+  {
+    "term_id": "BUILDING_CLINIC",
+    "translations": {
+      "en": "Clinic",
+      "zh": "醫務室",
+      "ko": "의무실",
+      "ar": "المستشفى"
+    }
+  },
+  {
+    "term_id": "BUILDING_SHELTER",
+    "translations": {
+      "en": "Shelter",
+      "zh": "民居",
+      "ko": "민가",
+      "ar": "المأوى"
+    }
+  },
+  {
+    "term_id": "BUILDING_COOKHOUSE",
+    "translations": {
+      "en": "Cookhouse",
+      "zh": "廚房",
+      "ko": "주방",
+      "ar": "المطبخ"
+    }
+  },
+  {
+    "term_id": "BUILDING_HERO_HALL",
+    "translations": {
+      "en": "Hero Hall",
+      "zh": "英雄大廳",
+      "ko": "영웅의 홀",
+      "ar": "قاعة الأبطال"
+    }
+  },
+  {
+    "term_id": "BUILDING_IRON_MINE",
+    "translations": {
+      "en": "Iron Mine",
+      "zh": "鐵礦場",
+      "ko": "제철 공장",
+      "ar": "منجم الحديد"
+    }
+  },
+  {
+    "term_id": "BUILDING_SAWMILL",
+    "translations": {
+      "en": "Sawmill",
+      "zh": "伐木場",
+      "ko": "벌목장",
+      "ar": "المنشرة"
+    }
+  },
+  {
+    "term_id": "BUILDING_COAL_MINE",
+    "translations": {
+      "en": "Coal Mine",
+      "zh": "煤礦場",
+      "ko": "석탄 공장",
+      "ar": "منجم الفحم"
+    }
+  },
+  {
+    "term_id": "BUILDING_HUNTER_S_HUT",
+    "translations": {
+      "en": "Hunter's Hut",
+      "zh": "獵人之家",
+      "ko": "사냥꾼 오두막",
+      "ar": "كوخ الصيد"
+    }
+  },
+  {
+    "term_id": "BUILDING_DAWN_ACADEMY",
+    "translations": {
+      "en": "Dawn Academy",
+      "zh": "曙光學院",
+      "ko": "희망 아카데미",
+      "ar": "أكاديمية الفجر"
+    }
+  },
+  {
+    "term_id": "BUILDING_BEAST_CAGE",
+    "translations": {
+      "en": "Beast Cage",
+      "zh": "獸欄",
+      "ko": "사육장",
+      "ar": "قفص الوحش"
+    }
+  },
+  {
+    "term_id": "BUILDING_LIGHTHOUSE",
+    "translations": {
+      "en": "Lighthouse",
+      "zh": "燈塔",
+      "ko": "등대",
+      "ar": "المنارة"
+    }
+  },
+  {
+    "term_id": "BUILDING_ARENA",
+    "translations": {
+      "en": "Arena",
+      "zh": "競技場",
+      "ko": "경기장",
+      "ar": "الساحة"
+    }
+  },
+  {
+    "term_id": "BUILDING_CHIEF_S_HOUSE",
+    "translations": {
+      "en": "Chief's House",
+      "zh": "律令所",
+      "ko": "시청",
+      "ar": "بيت الحاكم"
+    }
+  },
+  {
+    "term_id": "BUILDING_SUGGESTION_BOX",
+    "translations": {
+      "en": "Suggestion Box",
+      "zh": "民意信箱",
+      "ko": "민원 편지함",
+      "ar": "صندوق الاقتراحات"
+    }
+  },
+  {
+    "term_id": "BUILDING_EXPLORERS_CABIN",
+    "translations": {
+      "en": "Explorers Cabin",
+      "zh": "探險者之家",
+      "ko": "탐험가의 집",
+      "ar": "مقصورة المستكشفين"
+    }
+  },
+  {
+    "term_id": "BUILDING_CRYSTAL_LABORATORY",
+    "translations": {
+      "en": "Crystal Laboratory",
+      "zh": "煉晶實驗室",
+      "ko": "정련 실험실",
+      "ar": "مختبر الكريستال"
+    }
+  },
+  {
+    "term_id": "BUILDING_WAR_ACADEMY",
+    "translations": {
+      "en": "War Academy",
+      "zh": "戰爭學院",
+      "ko": "전쟁 아카데미",
+      "ar": "أكاديمية الحرب"
+    }
+  },
+  {
+    "term_id": "BUILDING_FIRE_CRYSTAL_MARKSMAN_CAMP",
+    "translations": {
+      "en": "Fire Crystal Marksman Camp",
+      "zh": "火晶射手營",
+      "ko": "불의 수정 궁병 병영",
+      "ar": "معسكر الرماية للكريستال الناري"
+    }
+  },
+  {
+    "term_id": "BUILDING_FIRE_CRYSTAL_INFANTRY_CAMP",
+    "translations": {
+      "en": "Fire Crystal Infantry Camp",
+      "zh": "火晶盾兵營",
+      "ko": "불의 수정 방패병 병영",
+      "ar": "معسكر المشاة للكريستال الناري"
+    }
+  },
+  {
+    "term_id": "BUILDING_FIRE_CRYSTAL_LANCER_CAMP",
+    "translations": {
+      "en": "Fire Crystal Lancer Camp",
+      "zh": "火晶矛兵營",
+      "ko": "불의 수정 창병 병영"
+    }
+  },
+  {
+    "term_id": "BUILDING_FIRE_CRYSTAL_EMBASSY",
+    "translations": {
+      "en": "Fire Crystal Embassy",
+      "zh": "火晶大使館",
+      "ko": "불의 수정 대사관",
+      "ar": "السفارة للكريستال الناري"
+    }
+  },
+  {
+    "term_id": "BUILDING_FIRE_CRYSTAL_INFIRMARY",
+    "translations": {
+      "en": "Fire Crystal Infirmary",
+      "zh": "火晶軍醫所",
+      "ko": "불의 수정 의무실",
+      "ar": "المستوصف للكريستال الناري"
+    }
+  },
+  {
+    "term_id": "BUILDING_FIRE_CRYSTAL_COMMAND_CENTER",
+    "translations": {
+      "en": "Fire Crystal Command Center",
+      "zh": "火晶指揮部",
+      "ko": "불의 수정 지휘부",
+      "ar": "مركز القيادة للكريستال الناري"
+    }
+  },
+  {
+    "term_id": "BUILDING_FIRE_CRYSTAL_FURNACE",
+    "translations": {
+      "en": "Fire Crystal Furnace",
+      "zh": "火晶大熔爐",
+      "ko": "불의 수정 용광로",
+      "ar": "حجرة الاحتراق للكريستال الناري"
+    }
+  },
+  {
+    "term_id": "ITEM_RARE_EXPEDITION_SKILL_MANUAL",
+    "translations": {
+      "en": "Rare Expedition Skill Manual",
+      "zh": "稀有遠征技能書",
+      "ko": "레어 원정 스킬북",
+      "ar": "تعليمات حملة استكشافية نادرة"
+    }
+  },
+  {
+    "term_id": "ITEM_EPIC_EXPEDITION_SKILL_MANUAL",
+    "translations": {
+      "en": "Epic Expedition Skill Manual",
+      "zh": "史詩遠征技能書",
+      "ko": "에픽 원정 스킬북",
+      "ar": "تعليمات حملة استكشافية ملحمية"
+    }
+  },
+  {
+    "term_id": "ITEM_HERO_XP",
+    "translations": {
+      "en": "Hero XP",
+      "zh": "英雄經驗值",
+      "ko": "영웅 경험치",
+      "ar": "خبرة البطل"
+    }
+  },
+  {
+    "term_id": "ITEM_MYTHIC_GENERAL_HERO_SHARD",
+    "translations": {
+      "en": "Mythic General Hero Shard",
+      "zh": "傳說通用英雄碎片",
+      "ko": "레전드 공용 영웅 조각",
+      "ar": "شظية البطل العام الخيالي"
+    }
+  },
+  {
+    "term_id": "ITEM_EPIC_GENERAL_HERO_SHARD",
+    "translations": {
+      "en": "Epic General Hero Shard",
+      "zh": "史詩通用英雄碎片",
+      "ko": "에픽 공용 영웅 조각",
+      "ar": "شظية البطل العام الملحمي"
+    }
+  },
+  {
+    "term_id": "ITEM_RARE_GENERAL_HERO_SHARD",
+    "translations": {
+      "en": "Rare General Hero Shard",
+      "zh": [
+        "稀有通用英雄碎片",
+        "稀有英雄碎片",
+        "R級英雄碎片"
+      ],
+      "ko": "레어 공용 영웅 조각",
+      "ar": "شظية البطل العام النادر"
+    }
+  },
+  {
+    "term_id": "ITEM_MYTHIC_EXPEDITION_SKILL_MANUAL",
+    "translations": {
+      "en": "Mythic Expedition Skill Manual",
+      "zh": "傳說遠征技能書",
+      "ko": "레전드 탐험 스킬북",
+      "ar": "تعليمات حملة استكشافية خيالية"
+    }
+  },
+  {
+    "term_id": "ITEM_PET_FOOD",
+    "translations": {
+      "en": "Pet Food",
+      "zh": "寵物口糧",
+      "ko": "펫 먹이",
+      "ar": "طعام حيوان أليف"
+    }
+  },
+  {
+    "term_id": "ITEM_ADVANCED_WILD_MARK",
+    "translations": {
+      "en": "Advanced Wild Mark",
+      "zh": "高級野性印記",
+      "ko": "고급 야성의 표식",
+      "ar": "علامة برية متقدمة"
+    }
+  },
+  {
+    "term_id": "ITEM_COMMON_WILD_MARK",
+    "translations": {
+      "en": "Common Wild Mark",
+      "zh": "普通野性印記",
+      "ko": "일반 야성의 표식",
+      "ar": "علامة برية شائعة"
+    }
+  },
+  {
+    "term_id": "ITEM_TAMING_MANUAL",
+    "translations": {
+      "en": "Taming Manual",
+      "zh": "馴獸手冊",
+      "ko": "조련 매뉴얼",
+      "ar": "دليل الترويض"
+    }
+  },
+  {
+    "term_id": "ITEM_ENERGIZING_POTION",
+    "translations": {
+      "en": "Energizing potion",
+      "zh": "活力藥劑",
+      "ko": "활력의 약",
+      "ar": "جرعة التنشيط"
+    }
+  },
+  {
+    "term_id": "ITEM_STRENGTHENING_SERUM",
+    "translations": {
+      "en": "Strengthening Serum",
+      "zh": "強化血清",
+      "ko": "강화 혈청",
+      "ar": "مصل تقوية"
+    }
+  },
+  {
+    "term_id": "ITEM_SPLENDID_LABYRINTH_TREASURE",
+    "translations": {
+      "en": "Splendid Labyrinth Treasure",
+      "zh": "華麗地域秘寶",
+      "ko": "화려한 지하 보물",
+      "ar": "كنز المتاهة الرائع"
+    }
+  },
+  {
+    "term_id": "ITEM_LABYRINTH_TREASURE",
+    "translations": {
+      "en": "Labyrinth Treasure",
+      "zh": "地域秘寶",
+      "ko": "지하 보물",
+      "ar": "كنز المتاهة"
+    }
+  },
+  {
+    "term_id": "ITEM_CUSTOM_TELEPORT_SKIN_CHEST",
+    "translations": {
+      "en": "Custom Teleport Skin Chest",
+      "zh": "遷城道具禮盒",
+      "ko": "도시 이전 특수효과 스킨 상자",
+      "ar": "صندوق مظهر النقل الفوري المخصص"
+    }
+  },
+  {
+    "term_id": "ITEM_CUSTOM_MARCH_SKIN_CHEST",
+    "translations": {
+      "en": "Custom March Skin Chest",
+      "zh": "行軍禮盒",
+      "ko": "행군 스킨 선택 상자",
+      "ar": "صندوق مظهر الزحف المخصص"
+    }
+  },
+  {
+    "term_id": "ITEM_CUSTOM_CITY_SKIN_CHEST",
+    "translations": {
+      "en": "Custom City Skin Chest",
+      "zh": "城鎮禮盒",
+      "ko": "도시 스킨 선택 상자",
+      "ar": "صندوق مظهر المدينة المخصص"
+    }
+  },
+  {
+    "term_id": "ITEM_RALLY",
+    "translations": {
+      "en": "Rally",
+      "zh": "集結召回",
+      "ko": "집결 소환",
+      "ar": "الحشد"
+    }
+  },
+  {
+    "term_id": "ITEM_MARCH_ACCELERATOR",
+    "translations": {
+      "en": "March Accelerator",
+      "zh": "行軍加速器",
+      "ko": "행군 가속기I",
+      "ar": "سرعة الزحف 1"
+    }
+  },
+  {
+    "term_id": "ITEM_EXPEDITION",
+    "translations": {
+      "en": "Expedition",
+      "zh": "出征召回",
+      "ko": "출정 소환",
+      "ar": "الحملة الاستكشافية"
+    }
+  },
+  {
+    "term_id": "ITEM_72H_SHIELD",
+    "translations": {
+      "en": "72h Shield",
+      "zh": "72小時防護罩",
+      "ko": "72시간 보호막",
+      "ar": "درع لمدة 72 ساعة"
+    }
+  },
+  {
+    "term_id": "ITEM_24H_SHIELD",
+    "translations": {
+      "en": "24h Shield",
+      "zh": "24小時防護罩",
+      "ko": "24시간 보호막",
+      "ar": "درع لمدة 24 ساعة"
+    }
+  },
+  {
+    "term_id": "ITEM_8H_SHIELD",
+    "translations": {
+      "en": "8h Shield",
+      "zh": "8小時防護罩",
+      "ko": "8시간 보호막",
+      "ar": "درع لمدة 8 ساعة"
+    }
+  },
+  {
+    "term_id": "ITEM_2H_SHIELD",
+    "translations": {
+      "en": "2h Shield",
+      "zh": "2小時防護罩",
+      "ko": "2시간 보호막",
+      "ar": "درع لمدة 2 ساعة"
+    }
+  },
+  {
+    "term_id": "ITEM_24H_COUNTER_RECON",
+    "translations": {
+      "en": "24h Counter-Recon",
+      "zh": "24小時反偵察",
+      "ko": "24시간 정찰 방지",
+      "ar": "الاستطلاع المضاد لمدة 24 ساعة"
+    }
+  },
+  {
+    "term_id": "ITEM_8H_COUNTER_RECON",
+    "translations": {
+      "en": "8h Counter-recon",
+      "zh": "8小時反偵察",
+      "ko": "8시간 정찰 방지",
+      "ar": "الاستطلاع المضاد لمدة 8 ساعة"
+    }
+  },
+  {
+    "term_id": "ITEM_2H_COUNTER_RECON",
+    "translations": {
+      "en": "2h Counter-Recon",
+      "zh": "2小時反偵察",
+      "ko": "2시간 정찰 방지",
+      "ar": "الاستطلاع المضاد لمدة 2 ساعة"
+    }
+  },
+  {
+    "term_id": "ITEM_REFINED_FIRE_CRYSTAL",
+    "translations": {
+      "en": "Refined Fire Crystal",
+      "zh": "精煉火精",
+      "ko": "제련된 불의 수정",
+      "ar": "كريستال ناري مكرر"
+    }
+  },
+  {
+    "term_id": "ITEM_FIRE_CRYSTAL_EMBER",
+    "translations": {
+      "en": "Fire Crystal Ember",
+      "zh": "火晶餘燼",
+      "ko": "불의 수정 잔재물",
+      "ar": "جمرة كريستال ناري"
+    }
+  },
+  {
+    "term_id": "ITEM_FIRE_CRYSTAL_SHARD",
+    "translations": {
+      "en": "Fire Crystal Shard",
+      "zh": "火晶微粒",
+      "ko": "불의 수정 조각",
+      "ar": "شظية كريستال ناري"
+    }
+  },
+  {
+    "term_id": "ITEM_FIRE_CRYSTAL",
+    "translations": {
+      "en": "Fire Crystal",
+      "zh": "火精",
+      "ko": "불의 수정",
+      "ar": "كريستال ناري"
+    }
+  },
+  {
+    "term_id": "ITEM_VALERIA_SIGIL",
+    "translations": {
+      "en": "Valeria Sigil",
+      "zh": "瓦萊莉亞印記",
+      "ko": "발레리아 표식",
+      "ar": "ختم فاليريا"
+    }
+  },
+  {
+    "term_id": "ITEM_BALDUR_S_SIGIL",
+    "translations": {
+      "en": "Baldur's Sigil",
+      "zh": "巴爾德印記",
+      "ko": "발데의 표식",
+      "ar": "ختم بالدور"
+    }
+  },
+  {
+    "term_id": "ITEM_FABIAN_SIGIL",
+    "translations": {
+      "en": "Fabian Sigil",
+      "zh": "法比安印記",
+      "ko": "파비안 표식",
+      "ar": "شارة فابيان"
+    }
+  },
+  {
+    "term_id": "ITEM_CYRILLE_SIGIL",
+    "translations": {
+      "en": "Cyrille Sigil",
+      "zh": "西里爾印記",
+      "ko": "키릴 표식",
+      "ar": "ختم سيريل"
+    }
+  },
+  {
+    "term_id": "ITEM_AGNES_SIGIL",
+    "translations": {
+      "en": "Agnes Sigil",
+      "zh": "艾格妮絲印記",
+      "ko": "아그네스 표식",
+      "ar": "ختم أغنيس"
+    }
+  },
+  {
+    "term_id": "ITEM_HOLGER_SIGIL",
+    "translations": {
+      "en": "Holger Sigil",
+      "zh": "霍爾格印記",
+      "ko": "홀게르 표식",
+      "ar": "ختم هولجر"
+    }
+  },
+  {
+    "term_id": "ITEM_ROMULUS_SIGIL",
+    "translations": {
+      "en": "Romulus Sigil",
+      "zh": "羅慕路斯印記",
+      "ar": "ختم رومولوس"
+    }
+  },
+  {
+    "term_id": "ITEM_COMPASS",
+    "translations": {
+      "en": "Compass",
+      "zh": "指南針",
+      "ko": "나침반",
+      "ar": "بوصلة"
+    }
+  },
+  {
+    "term_id": "ITEM_SNOW_SOVEREIGN",
+    "translations": {
+      "en": "Snow Sovereign",
+      "zh": "風雪御手",
+      "ko": "눈보라의 지배자",
+      "ar": "سيادة الثلج"
+    }
+  },
+  {
+    "term_id": "ITEM_EMPEROR_PENGUIN_SLOPES",
+    "translations": {
+      "en": "Emperor Penguin Slopes",
+      "zh": "帝企鵝滑雪場",
+      "ko": "황제 펭귄 스키장",
+      "ar": "منحدرات البطريق الامبراطور"
+    }
+  },
+  {
+    "term_id": "ITEM_2025_BIRTHDAY_CARD",
+    "translations": {
+      "en": "2025 Birthday Card",
+      "zh": "2025生日賀卡",
+      "ko": "2025 생일 카드",
+      "ar": "بطاقة عيد الميلاد 2025"
+    }
+  },
+  {
+    "term_id": "ITEM_2024_BIRTHDAY_CARD",
+    "translations": {
+      "en": "2024 Birthday Card",
+      "zh": "2024生日賀卡",
+      "ko": "2024 생일 카드",
+      "ar": "بطاقة عيد الميلاد 2024"
+    }
+  },
+  {
+    "term_id": "ITEM_2023_BIRTHDAY_CARD",
+    "translations": {
+      "en": "2023 Birthday Card",
+      "zh": "2023生日賀卡",
+      "ko": "2023 생일 카드",
+      "ar": "بطاقة عيد الميلاد 2023"
+    }
+  },
+  {
+    "term_id": "ITEM_ADVANCED_TELEPORTER",
+    "translations": {
+      "en": "Advanced Teleporter",
+      "zh": "高級遷城",
+      "ko": "고급 도시 이전",
+      "ar": "ناقل متقدم"
+    }
+  },
+  {
+    "term_id": "ITEM_ALLIANCE_TELEPORTER",
+    "translations": {
+      "en": "Alliance Teleporter",
+      "zh": "聯盟遷城",
+      "ko": "연맹 도시 이전",
+      "ar": "ناقل التحالف"
+    }
+  },
+  {
+    "term_id": "ITEM_CHIEF_CHARM",
+    "translations": {
+      "en": "Chief Charm",
+      "zh": "領主寶石",
+      "ko": "영주 보석",
+      "ar": "تمائم الحاكم"
+    }
+  },
+  {
+    "term_id": "ITEM_SHOT_TOKEN",
+    "translations": {
+      "en": "Shot Token",
+      "zh": "神槍券",
+      "ko": "명사수권",
+      "ar": "رمز القناص"
+    }
+  },
+  {
+    "term_id": "ITEM_2ND_ANNIVERSARY_BADGE",
+    "translations": {
+      "en": "2nd Anniversary Badge",
+      "zh": "2週年紀念勳章",
+      "ko": "2주년 기념 훈장",
+      "ar": "شارة الذكرى السنوية الثانية"
+    }
+  },
+  {
+    "term_id": "ITEM_FROST_SPHERE_PUZZLE_PIECE",
+    "translations": {
+      "en": "Frost Sphere Puzzle Piece",
+      "zh": "寒霜星球拼圖",
+      "ko": "화이트아웃 행성 파편",
+      "ar": "احجية كرة الصقيع"
+    }
+  },
+  {
+    "term_id": "ITEM_BLAZING_METEOR_PUZZLE_PIECE",
+    "translations": {
+      "en": "Blazing Meteor Puzzle Piece",
+      "zh": "天隕拼圖",
+      "ko": "타오르는 유성 파편",
+      "ar": "أحجية النيزك المشتعل"
+    }
+  },
+  {
+    "term_id": "ITEM_CHIEF_RENAME_CARD",
+    "translations": {
+      "en": "Chief Rename Card",
+      "zh": "領主改名卡",
+      "ko": "영주 개명 카드",
+      "ar": "بطاقة إعادة تسمية الحاكم"
+    }
+  },
+  {
+    "term_id": "ITEM_CELEBRATION_FIREWORK_2ND_ANNIVERSARY",
+    "translations": {
+      "en": "Celebration Firework (2nd Anniversary)",
+      "zh": "慶典煙火 (二週年)",
+      "ko": "축제의 불꽃 (2주년)",
+      "ar": "الألعاب النارية الاحتفالية(الذكرى السنوية الثانية)"
+    }
+  },
+  {
+    "term_id": "ITEM_SNAPSHOT_OF_TIME_2025",
+    "translations": {
+      "en": "Snapshot of Time 2025",
+      "zh": "時光剪影 2025",
+      "ko": "타임 실루엣 2025",
+      "ar": "لقطة من الزمن 2025"
+    }
+  },
+  {
+    "term_id": "ITEM_GENEROSITY_EMBLEM",
+    "translations": {
+      "en": "Generosity Emblem",
+      "zh": "慷慨徽記",
+      "ko": "관대함의 배지",
+      "ar": "شعار الكرم"
+    }
+  },
+  {
+    "term_id": "ITEM_LUCKY_POUCH",
+    "translations": {
+      "en": "Lucky Pouch",
+      "zh": "幸運福袋",
+      "ko": "행운 복주머니",
+      "ar": "الحقيبة المحظوظة"
+    }
+  },
+  {
+    "term_id": "ITEM_CHAMPION_STAKE",
+    "translations": {
+      "en": "Champion Stake",
+      "zh": "冠軍預測券",
+      "ko": "챔피언 예측 티켓",
+      "ar": "حصة البطل"
+    }
+  },
+  {
+    "term_id": "ITEM_MATCH_STAKE",
+    "translations": {
+      "en": "Match Stake",
+      "zh": "比賽預測券",
+      "ko": "리그 예측 티켓",
+      "ar": "حصة المباراة"
+    }
+  },
+  {
+    "term_id": "ITEM_CUSTOM_MISSION_VOUCHER",
+    "translations": {
+      "en": "Custom Mission Voucher",
+      "zh": "自選任務券",
+      "ko": "임무 선택권",
+      "ar": "قسيمة مهمه مخصصة"
+    }
+  },
+  {
+    "term_id": "ITEM_POCKET_WATCH",
+    "translations": {
+      "en": "Pocket Watch",
+      "zh": "時光懷錶",
+      "ko": "세월의 회중시계",
+      "ar": "ساعة الجيب"
+    }
+  },
+  {
+    "term_id": "ITEM_ICEFISHER_VOUCHER",
+    "translations": {
+      "en": "Icefisher Voucher",
+      "zh": "冰釣禮券",
+      "ko": "얼음낚시 쿠폰",
+      "ar": "قسيمة الصيد في الجليد"
+    }
+  },
+  {
+    "term_id": "ITEM_OCEAN_SCANNER",
+    "translations": {
+      "en": "Ocean Scanner",
+      "zh": "深海感應器",
+      "ko": "심해 센서",
+      "ar": "ماسح المحيط"
+    }
+  },
+  {
+    "term_id": "ITEM_FROSTY_PROSPECTOR",
+    "translations": {
+      "en": "Frosty Prospector",
+      "zh": "藏寶海圖",
+      "ko": "바다 보물 지도",
+      "ar": "مخطط الكنز"
+    }
+  },
+  {
+    "term_id": "ITEM_HORN_OF_POSEIDON",
+    "translations": {
+      "en": "Horn of Poseidon",
+      "zh": "海神號角",
+      "ko": "포세이돈의 나팔",
+      "ar": "بوق بوسيدون"
+    }
+  },
+  {
+    "term_id": "ITEM_REEL_STABILIZER",
+    "translations": {
+      "en": "Reel Stabilizer",
+      "zh": "線輪穩定器",
+      "ko": "릴 안정기",
+      "ar": "مُثبت البكرة"
+    }
+  },
+  {
+    "term_id": "ITEM_LANTERN",
+    "translations": {
+      "en": "Lantern",
+      "zh": "照明燈",
+      "ko": "조명등",
+      "ar": "فانوس"
+    }
+  },
+  {
+    "term_id": "ITEM_TRAINING_CAPACITY_ENHANCE",
+    "translations": {
+      "en": "Training Capacity Enhance",
+      "zh": "訓練容量提升"
+    }
+  },
+  {
+    "term_id": "ITEM_GATHERING_SPEED_BOOST",
+    "translations": {
+      "en": "Gathering Speed Boost",
+      "zh": "採集速度提升"
+    }
+  },
+  {
+    "term_id": "ITEM_DEPLOYMENT_CAPACITY_BOOST",
+    "translations": {
+      "en": "Deployment Capacity Boost",
+      "zh": "出征容量提升"
+    }
+  },
+  {
+    "term_id": "ITEM_ENEMY_TROOPS_DEFENSE_DOWN",
+    "translations": {
+      "en": "Enemy Troops Defense Down",
+      "zh": "敵方部隊防禦降低"
+    }
+  },
+  {
+    "term_id": "ITEM_ENEMY_TROOPS_ATTACK_DOWN",
+    "translations": {
+      "en": "Enemy Troops Attack Down",
+      "zh": "敵方部隊攻擊降低"
+    }
+  },
+  {
+    "term_id": "ITEM_TROOPS_HEALTH_UP",
+    "translations": {
+      "en": "Troops Health Up",
+      "zh": "部隊生命提升"
+    }
+  },
+  {
+    "term_id": "ITEM_TROOPS_DEFENSE_UP",
+    "translations": {
+      "en": "Troops Defense Up",
+      "zh": "部隊防禦力提升"
+    }
+  },
+  {
+    "term_id": "ITEM_TROOPS_ATTACK_UP",
+    "translations": {
+      "en": "Troops Attack Up",
+      "zh": "部隊攻擊提升"
+    }
+  },
+  {
+    "term_id": "ITEM_TROOPS_DAMAGE_UP",
+    "translations": {
+      "en": "Troops Damage Up",
+      "zh": "部隊傷害提升"
+    }
+  },
+  {
+    "term_id": "ITEM_HERO_SHARD",
+    "translations": {
+      "en": "Hero Shard",
+      "zh": "英雄碎片"
+    }
+  },
+  {
+    "term_id": "ITEM_SKILL_MANUAL",
+    "translations": {
+      "en": "Skill Manual",
+      "zh": "技能書"
+    }
+  },
+  {
+    "term_id": "PET_CAVE_HYENA",
+    "translations": {
+      "en": [
+        "Cave Hyena",
+        "Hyena"
+      ],
+      "zh": [
+        "洞斑鬣狗",
+        "鬣狗"
+      ],
+      "ko": "하이에나",
+      "ar": "ضبع الكهف"
+    }
+  },
+  {
+    "term_id": "PET_MUSK_OX",
+    "translations": {
+      "en": "Musk Ox",
+      "zh": "麝牛",
+      "ko": "사향소",
+      "ar": "ثور المسك"
+    }
+  },
+  {
+    "term_id": "PET_ARCTIC_WOLF",
+    "translations": {
+      "en": "Arctic Wolf",
+      "zh": "北極狼",
+      "ko": "북극 늑대",
+      "ar": "ذئب القطب الشمالي"
+    }
+  },
+  {
+    "term_id": "PET_TITAN_ROC",
+    "translations": {
+      "en": "Titan Roc",
+      "zh": "泰坦巨鳥",
+      "ko": "티타니스",
+      "ar": "رخ ضخم"
+    }
+  },
+  {
+    "term_id": "PET_GIANT_TAPIR",
+    "translations": {
+      "en": "Giant Tapir",
+      "zh": "巨貘",
+      "ko": "거대한 테이퍼",
+      "ar": "تابير عملاق"
+    }
+  },
+  {
+    "term_id": "PET_SNOW_LEOPARD",
+    "translations": {
+      "en": "Snow Leopard",
+      "zh": "雪豹",
+      "ko": "눈표범",
+      "ar": "نمر الثلج"
+    }
+  },
+  {
+    "term_id": "PET_GIANT_ELK",
+    "translations": {
+      "en": "Giant Elk",
+      "zh": "大角鹿",
+      "ko": "큰뿔사슴",
+      "ar": "أيل عملاق"
+    }
+  },
+  {
+    "term_id": "PET_FROST_GORILLA",
+    "translations": {
+      "en": "Frost Gorilla",
+      "zh": "冰霜古猿",
+      "ko": "기간토피테쿠스",
+      "ar": "غوريلا الصقيع"
+    }
+  },
+  {
+    "term_id": "PET_FROSTSCALE_CHAMELEON",
+    "translations": {
+      "en": "Frostscale Chameleon",
+      "zh": "霜鱗避役",
+      "ko": "서리 비늘 카멜레온",
+      "ar": "الحرباء ذات الحراشف الجليدية"
+    }
+  },
+  {
+    "term_id": "PET_MAMMOTH",
+    "translations": {
+      "en": "Mammoth",
+      "zh": "猛瑪象",
+      "ko": "매머드",
+      "ar": "ماموث"
+    }
+  },
+  {
+    "term_id": "PET_SABER_TOOTH_TIGER",
+    "translations": {
+      "en": "Saber-tooth Tiger",
+      "zh": "劍齒虎",
+      "ko": "검치호랑이",
+      "ar": "نمر شاحذ الاسنان"
+    }
+  },
+  {
+    "term_id": "PET_IRON_RHINO",
+    "translations": {
+      "en": "Iron Rhino",
+      "zh": "板齒犀",
+      "ko": "초거대 코뿔소",
+      "ar": "وحيد القرن الحديدي"
+    }
+  },
+  {
+    "term_id": "PET_SNOW_APE",
+    "translations": {
+      "en": "Snow Ape",
+      "zh": "雪猿",
+      "ko": "프로스트 고릴라",
+      "ar": "قرد الثلج"
+    }
+  },
+  {
+    "term_id": "PET_CAVE_LION",
+    "translations": {
+      "en": "Cave Lion",
+      "zh": "穴獅",
+      "ko": "동굴사자",
+      "ar": "أسد الكهف"
+    }
+  },
+  {
+    "term_id": "EXPERT_GARETH",
+    "translations": {
+      "en": "Gareth",
+      "zh": "加雷斯"
+    }
+  },
+  {
+    "term_id": "EXPERT_RONNE",
+    "translations": {
+      "en": "Ronne",
+      "zh": "羅妮",
+      "ko": "로니",
+      "ar": "روني"
+    }
+  },
+  {
+    "term_id": "EXPERT_AGNES",
+    "translations": {
+      "en": "Agnes",
+      "zh": "艾格妮絲",
+      "ko": "아그네스",
+      "ar": "أغنيس"
+    }
+  },
+  {
+    "term_id": "EXPERT_VALERIA",
+    "translations": {
+      "en": "Valeria",
+      "zh": "瓦萊莉亞",
+      "ko": "발레리아",
+      "ar": "فاليريا"
+    }
+  },
+  {
+    "term_id": "EXPERT_BALDUR",
+    "translations": {
+      "en": "Baldur",
+      "zh": "巴爾德",
+      "ko": "발데",
+      "ar": "بالدور"
+    }
+  },
+  {
+    "term_id": "EXPERT_FABIAN",
+    "translations": {
+      "en": "Fabian",
+      "zh": "法比安",
+      "ko": "파비안",
+      "ar": "فابيان"
+    }
+  },
+  {
+    "term_id": "EXPERT_ROMULUS",
+    "translations": {
+      "en": "Romulus",
+      "zh": "羅慕路斯",
+      "ko": "로물루스",
+      "ar": "رومولوس"
+    }
+  },
+  {
+    "term_id": "EXPERT_HOLGER",
+    "translations": {
+      "en": "Holger",
+      "zh": "霍爾格",
+      "ko": "홀게르",
+      "ar": "هولجر"
+    }
+  },
+  {
+    "term_id": "EXPERT_CYRILLE",
+    "translations": {
+      "en": "Cyrille",
+      "zh": "西里爾",
+      "ko": "키릴",
+      "ar": "سيريل"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_TREATIES",
+    "translations": {
+      "en": "Treaties",
+      "zh": "合作協議",
+      "ko": "협력 협의",
+      "ar": "II المعاهدات"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_ADVANCED_TRAINING",
+    "translations": {
+      "en": "Advanced Training",
+      "zh": "效率訓練",
+      "ko": "효율적 훈련",
+      "ar": "I التدريب المتقدم"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_MECHANISMS",
+    "translations": {
+      "en": "Mechanisms",
+      "zh": "器材升級",
+      "ko": "기자재 업그레이드",
+      "ar": "I الاليات"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_ADAPTIVE_TOOLS",
+    "translations": {
+      "en": "Adaptive Tools",
+      "zh": "工具升級",
+      "ko": "도구 업그레이드",
+      "ar": "I أدوات التكيف"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_COOPERATIVE_PROTOCOLS",
+    "translations": {
+      "en": "Cooperative Protocols",
+      "zh": "效率協作",
+      "ko": "효율적 협력",
+      "ar": "I البروتوكولات التعاونية"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_ALLIANCE_REGIMENTATION",
+    "translations": {
+      "en": "Alliance Regimentation",
+      "zh": "聯盟擴編",
+      "ko": "연맹 확대 편성",
+      "ar": "I هيكلة قوات التحالف"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_IRON_MINING",
+    "translations": {
+      "en": "Iron Mining",
+      "zh": "鐵礦採集",
+      "ko": "철광 채집",
+      "ar": "I تعدين الحديد"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_COAL_MINING",
+    "translations": {
+      "en": "Coal Mining",
+      "zh": "煤礦採集",
+      "ko": "석탄 채집",
+      "ar": "I تعدين الفحم"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_WOOD_GATHERING",
+    "translations": {
+      "en": "Wood Gathering",
+      "zh": "木材採集",
+      "ko": "목재 채집",
+      "ar": "I جمع الخشب"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_FOOD_GATHERING",
+    "translations": {
+      "en": "Food Gathering",
+      "zh": "食物採集",
+      "ko": "식량 채집",
+      "ar": "I جمع الطعام"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_TUNDRA_SURVEYING",
+    "translations": {
+      "en": "Tundra Surveying",
+      "zh": "開拓雪原",
+      "ko": "설원 개척",
+      "ar": "استطلاع الحقل الثلجي"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_FIRST_AID_TECHNIQUES",
+    "translations": {
+      "en": "First Aid Techniques",
+      "zh": "急救技術",
+      "ko": "응급처치 기술",
+      "ar": "I تقنية الاسعافات الاولية"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_FERTILE_LAND_EXPEDITION",
+    "translations": {
+      "en": "Fertile Land Expedition",
+      "zh": "進軍沃土",
+      "ko": "옥토 행군",
+      "ar": "حملة الارض الخصبة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_ALLIANCE_ENGINEERING",
+    "translations": {
+      "en": "Alliance Engineering",
+      "zh": "聯盟工程",
+      "ko": "연맹 공정",
+      "ar": "I هندسية التحالف"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_STOREHOUSE_EXPANSION",
+    "translations": {
+      "en": "Storehouse Expansion",
+      "zh": "倉庫擴充",
+      "ko": "창고 확장",
+      "ar": "I توسعة المستودع"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_INCENDIARY_BULLETS",
+    "translations": {
+      "en": "Incendiary Bullets",
+      "zh": "燃燒彈",
+      "ko": "연소탄",
+      "ar": "I الرصاص الحارق"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_ALLIANCE_BUILDING_DURABILITY",
+    "translations": {
+      "en": "Alliance Building Durability",
+      "zh": "建築耐久度",
+      "ko": "건물 내구도",
+      "ar": "I متانة مبنى التحالف"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_TACTICAL_EXPANSION",
+    "translations": {
+      "en": "Tactical Expansion",
+      "zh": "戰略擴張",
+      "ko": "전략 확장",
+      "ar": "I التوسع التكتيكي"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_RAPID_DEPLOYMENT",
+    "translations": {
+      "en": "Rapid Deployment",
+      "zh": "快速行軍",
+      "ko": "빠른 행군",
+      "ar": "I الانتشار السريع"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_TROOPS_ATTACK",
+    "translations": {
+      "en": "Troops Attack",
+      "zh": "部隊攻擊力",
+      "ko": "부대 공격력",
+      "ar": "I هجوم القوات"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_MARKSMAN_ATTACK",
+    "translations": {
+      "en": "Marksman Attack",
+      "zh": "射手攻擊力",
+      "ko": "궁병 공격력",
+      "ar": "I هجوم الرماة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_LANCER_ATTACK",
+    "translations": {
+      "en": "Lancer Attack",
+      "zh": "矛兵攻擊力",
+      "ko": "창병 공격력",
+      "ar": "I هجوم رامي الرماح"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_INFANTRY_ATTACK",
+    "translations": {
+      "en": "Infantry Attack",
+      "zh": "盾兵攻擊力",
+      "ko": "방패병 공격력",
+      "ar": "I هجوم المشاة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_RALLY_EXPANSION",
+    "translations": {
+      "en": "Rally Expansion",
+      "zh": "擴大集結",
+      "ko": "집결 확대",
+      "ar": "II توسع الحشد"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_TROOPS_DEFENSE",
+    "translations": {
+      "en": "Troops Defense",
+      "zh": "部隊防禦力",
+      "ko": "부대 방어력",
+      "ar": "I قوة دفاع القوات"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_MARKSMAN_DEFENSE",
+    "translations": {
+      "en": "Marksman Defense",
+      "zh": "射手防禦力",
+      "ko": "궁병 방어력",
+      "ar": "I دفاع الرماة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_LANCER_DEFENSE",
+    "translations": {
+      "en": "Lancer Defense",
+      "zh": "矛兵防禦力",
+      "ko": "창병 방어력",
+      "ar": "I دفاع رماة الرمح"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_INFANTRY_DEFENSE",
+    "translations": {
+      "en": "Infantry Defense",
+      "zh": "盾兵防禦力",
+      "ko": "방패병 방어력",
+      "ar": "I دفاع المشاة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_LONG_LIVE_OUR_ALLIANCE",
+    "translations": {
+      "en": "Long Live Our Alliance",
+      "zh": "聯盟永續",
+      "ko": "영원한 연맹",
+      "ar": "عاش تحالفنا"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_TROOPS_HEALTH",
+    "translations": {
+      "en": "Troops Health",
+      "zh": "部隊生命值",
+      "ko": "부대 HP",
+      "ar": "I صحة القوات"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_MARKSMAN_HEALTH",
+    "translations": {
+      "en": "Marksman Health",
+      "zh": "射手生命值",
+      "ko": "궁병 HP",
+      "ar": "I صحة الرماة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_LANCER_HEALTH",
+    "translations": {
+      "en": "Lancer Health",
+      "zh": "矛兵生命值",
+      "ko": "창병 HP",
+      "ar": "I صحة رامي الرماح"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_INFANTRY_HEALTH",
+    "translations": {
+      "en": "Infantry Health",
+      "zh": "盾兵生命值",
+      "ko": "방패병 HP",
+      "ar": "I صحة المشاة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_TROOPS_LETHALITY",
+    "translations": {
+      "en": "Troops Lethality",
+      "zh": "部隊殺傷力",
+      "ko": "부대 파괴력",
+      "ar": "I قوة فتك القوات"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_MARKSMAN_LETHALITY",
+    "translations": {
+      "en": "Marksman Lethality",
+      "zh": "射手殺傷力",
+      "ko": "궁병 파괴력",
+      "ar": "I قوة فتك الرماة"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_LANCER_LETHALITY",
+    "translations": {
+      "en": "Lancer Lethality",
+      "zh": "矛兵殺傷力",
+      "ko": "창병 파괴력",
+      "ar": "I قوة فتك رامي الرماح"
+    }
+  },
+  {
+    "term_id": "ALLYTECH_INFANTRY_LETHALITY",
+    "translations": {
+      "en": "Infantry Lethality",
+      "zh": "盾兵殺傷力",
+      "ko": "방패병 파괴력",
+      "ar": "I قوة فتك المشاة"
     }
   }
 ]

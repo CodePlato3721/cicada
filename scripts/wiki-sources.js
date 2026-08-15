@@ -21,6 +21,53 @@ export const SOURCES = [
     idPrefix: 'EVENT',
     listUrl: 'https://www.whiteoutsurvival.wiki/events/',
   },
+  // research/alliance-tech 两个页面的界面比 heroes/events 复杂：上面有分类 Tab
+  // （Battle/Growth/Economy...），左边还有独立的 Tier 层级筛选，两个维度可以分别切换。
+  // 抓取前必须两个维度都看过，不能只确认其中一边就假设"看到的就是全部"——比如只切
+  // 过左边 Tier、没切过上面的 Tab，可能漏掉别的分类下的条目。已经用 WebFetch 对
+  // research 验证过：不管当前 Tab/Tier 选哪个，全部条目其实是一次性服务端渲染在
+  // 同一份 HTML 里的（Tab/Tier 只是前端展示效果，不是重新请求数据），所以
+  // fetchListPage() 一次抓取就能拿到所有分类的条目，不用管这层 UI。alliance-tech
+  // 还没验证，抓之前应该重复同样的检查（WebFetch 看原始 HTML，确认所有 Tab 下的条目
+  // 是否都在同一份响应里、每条是否有独立详情页链接）。
+  {
+    id: 'research',
+    game: 'whiteout',
+    idPrefix: 'RESEARCH',
+    listUrl: 'https://www.whiteoutsurvival.wiki/research/',
+  },
+  {
+    id: 'buildings',
+    game: 'whiteout',
+    idPrefix: 'BUILDING',
+    listUrl: 'https://www.whiteoutsurvival.wiki/buildings/',
+  },
+  {
+    id: 'items',
+    game: 'whiteout',
+    idPrefix: 'ITEM',
+    listUrl: 'https://www.whiteoutsurvival.wiki/items/',
+  },
+  {
+    id: 'pets',
+    game: 'whiteout',
+    idPrefix: 'PET',
+    listUrl: 'https://www.whiteoutsurvival.wiki/pets/',
+  },
+  {
+    id: 'experts',
+    game: 'whiteout',
+    idPrefix: 'EXPERT',
+    listUrl: 'https://www.whiteoutsurvival.wiki/experts/',
+  },
+  // 跟 research 同款"分类 Tab + Tier 层级"两层切换界面，还没验证过是否也是全部
+  // 服务端渲染在同一份 HTML 里——抓之前重复 research 那条注释里的检查步骤。
+  {
+    id: 'alliance-tech',
+    game: 'whiteout',
+    idPrefix: 'ALLYTECH',
+    listUrl: 'https://www.whiteoutsurvival.wiki/alliance-tech/',
+  },
 ];
 
 export function getSource(id) {

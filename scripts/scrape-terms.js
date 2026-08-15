@@ -15,6 +15,7 @@ import {
   verifyNoHiddenPagination,
   resolveZhName,
   cleanText,
+  stripTierSuffix,
   toTermId,
   pool,
 } from './lib/wiki-scraper.js';
@@ -84,7 +85,13 @@ async function scrapeSource(sourceId) {
     const enDetailUrl = `${source.listUrl}${slug}/`;
     try {
       const zhName = await resolveZhName(enDetailUrl);
-      return { slug, en: cleanText(name), zh: zhName ? cleanText(zhName) : null };
+      return {
+        slug,
+        // 科技类分类的名字常带等级罗马数字后缀（"Lancer Armor I"），这里在中英文
+        // 两边都去掉，只留基础名——后面按去重后的名字合并同一等级序列的多条记录。
+        en: stripTierSuffix(cleanText(name)),
+        zh: zhName ? stripTierSuffix(cleanText(zhName)) : null,
+      };
     } catch (e) {
       return { slug, en: cleanText(name), zh: null, error: String(e) };
     }
@@ -95,11 +102,22 @@ async function scrapeSource(sourceId) {
 
   const draft = [];
   let skippedExisting = 0;
+  let skippedTierDuplicate = 0;
+  // 去掉等级后缀之后，同一次抓取内可能出现多条同名记录（"Lancer Armor I/II/III..."
+  // 全部变成 "Lancer Armor"）——只保留第一次出现的那条，代表这个基础名。
+  const seenThisRun = new Set();
   for (const { en, zh } of paired) {
-    if (existingEnNames.has(en.toLowerCase())) {
+    const key = en.toLowerCase();
+    if (existingEnNames.has(key)) {
       skippedExisting += 1;
       continue;
     }
+    if (seenThisRun.has(key)) {
+      skippedTierDuplicate += 1;
+      continue;
+    }
+    seenThisRun.add(key);
+
     const entry = { term_id: toTermId(source.idPrefix, en), translations: { en, zh } };
     const flags = flagRisks(entry);
     draft.push(flags.length > 0 ? { ...entry, flags } : entry);
@@ -112,7 +130,15 @@ async function scrapeSource(sourceId) {
   const flaggedCount = draft.filter((e) => e.flags).length;
   console.log(`新增: ${draft.length} 条（其中 ${flaggedCount} 条有风险标记）`);
   console.log(`已存在(跳过): ${skippedExisting} 条`);
-  console.log(`未配对(没有中文页面): ${unpaired.length} 个${unpaired.length ? '：' + unpaired.map((u) => u.en).join('、') : ''}`);
+  console.log(`等级后缀去重(跳过): ${skippedTierDuplicate} 条`);
+  // 未配对的条目也可能因为同一个基础名有好几个等级、每个等级都没有中文页面而重复
+  // 出现（比如 "Weapons Prep I/II/III..." 全部缺中文页），这里只展示去重后的基础名，
+  // 不然日志会把同一个名字打印五六遍。
+  const unpairedUniqueNames = [...new Set(unpaired.map((u) => u.en))];
+  console.log(
+    `未配对(没有中文页面): ${unpaired.length} 个，共 ${unpairedUniqueNames.length} 个基础名` +
+      `${unpairedUniqueNames.length ? '：' + unpairedUniqueNames.join('、') : ''}`,
+  );
   if (draft.length > 0) {
     console.log(`\n已写入 ${draftPath}，人工审核（删掉不要的条目/修正 flags 标出来的可疑条目）之后运行：`);
     console.log(`  node scripts/merge-terms.js ${source.id}`);
