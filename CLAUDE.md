@@ -33,7 +33,7 @@ STT/翻译两个环节各自通过端口(`src/application/ports/`)与具体供�
 - 路由表是 `src/application/ports/tts.js` 的 `TTS_PROVIDER_BY_LANG`(目标语言 → 供应商名),不是环境变量——不存在 `TTS_PROVIDER` 这个配置项。想调整某个语言用哪个供应商,改这张表,不是改 `.env`。没有做"这张表跟各供应商 adapter 自己声明的 `TTS_SUPPORTED_LANGS` 是否一致"这层启动期校验——`TTS_SUPPORTED_LANGS` 跟实际接的音色列表在同一个小文件里,改音色时顺手就会改这个数组,两者对不上的概率低,不值得加这层防御
 - `session.ttsProvider` 字段跟 `session.targetLang` 联动(`session.js` 的 `setTargetLang` 里一起设置),目标语言不在 `TTS_PROVIDER_BY_LANG` 里就是 `undefined`——`pipeline.js` 靠这个判断"这个目标语言没法出声音,只有译文文字",不是判断"当前唯一供应商的 `TTS_SUPPORTED_LANGS`"(那是单供应商时代的旧逻辑,已经不适用)
 - 中文用繁体音色(Deepgram STT 那边 zh→zh-TW 是同一个理由:项目排除中国大陆用户、以繁体中文使用者为主);阿拉伯语用沙特阿拉伯(ar-SA)音色,Azure 没有跟 STT 那边裸 `ar` 代码对应的"通用阿拉伯语"选项;葡萄牙语用巴西口音(pt-BR),全球使用人口远多于葡萄牙本土
-- 说话人的 TTS 音色现在按供应商分开存(`speakerState.voicesByProvider`,`provider -> voice`),不是单个 `.voice` 字段——不同供应商的音色命名空间完全不通用(Deepgram 是"aura-2-xxx-en"这种,Azure 是"zh-TW-XxxNeural"这种),目标语言变化导致供应商切换时会给新供应商单独分配一个音色,不保证跟旧供应商听感一致,这是多供应商架构没法避免的取舍
+- 说话人的 TTS 音色按"供应商+语言"分开存(`speakerState.voicesByProviderLang`,`"provider:lang" -> voice`),不是单个 `.voice` 字段、也不能只按供应商存——**实测踩过的真实 bug**:每个 adapter 的音色池最初是按"供应商 → 性别"两层分组(比如 Azure 一个 `male` 数组里混着 zh/ko/pt/ar 四种语言的音色),`assignVoice` 按性别随机挑的时候完全不知道要念哪种语言,出现过目标语言是中文却随机分配到 `pt-BR-AntonioNeural`(葡萄牙语)去念中文文本,Azure 只能返回一份没有实际内容的空音频(44 字节,标准"空音频"WAV 的大小),下游 `wav.js` 解析直接报错(`channels=0, sampleRate=0, bitsPerSample=0`)。修复:音色池改成按"**语言 → 性别**"两层分组(`VOICES_BY_LANG_AND_GENDER`,每个 adapter 都有),`assignVoice`/`getVoicesByGender` 都要求显式传 `lang`;缓存 key 同理必须是"供应商+语言"组合,不能只按供应商——同一个供应商可能覆盖好几种语言(比如 deepgram 覆盖 en/fr/ja/de/es),只按供应商缓存会导致同一个人从 `target:en` 切到 `target:fr`(供应商都是 deepgram,没变)时错误复用缓存的英语音色去读法语文本。目标语言变化导致供应商或语言组合切换时会给新组合单独分配一个音色,不保证跟旧组合听感一致,这是多供应商架构没法避免的取舍
 - `/lang target:` 的可选语言列表从 `TTS_PROVIDER_BY_LANG` 的 key 动态生成(见 `lang.js`),不是手写的固定列表,加/删一个路由表条目,`/lang` 的选项自动跟着变
 
 ---
@@ -103,6 +103,19 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 
 ---
 
+## 播放顺序保证(sequence 号 + 播放队列重排)
+
+### 问题
+每句话的 STT/翻译/TTS 是"发射后不管"并发跑的(`pipeline.js` 顶部注释),不会等上一句处理完再处理下一句。这意味着后说的话如果翻译得快,可能比先说的话(翻译慢)先跑到播放这一步——实测复现过:先说的句子因为翻译 API 响应慢了几秒,比后说的句子晚返回,结果播放顺序变成"后说的先播、先说的后播"。
+
+### 方案
+- `session.js` 维护每个 guild 一个严格递增计数器 `playbackSeq`,`nextPlaybackSequence(guildId)` 分配下一个号
+- 号码必须在 `voice-listener.js` 的 `handleDetectedSegment` 里、VAD 刚判定"这句话说完了"的那一刻**同步**分配,再传给 `handleSegment`——不能等 `handleSegment` 异步处理完再分配,那样分配到的是"处理完的顺序"而不是"说话的顺序",起不到重排作用
+- `playback-queue.js` 不再是纯 FIFO,而是按 sequence 做重排缓冲区(`pending: Map<sequence, pcmBuffer|null>`):必须先播完 sequence 小的,sequence 大的就算先到也要等着
+- `pipeline.js` 的 `handleSegment` 用 `try/finally` 包住整个函数体:凡是提前 `return` 的分支(目标语言未设置、源语言检测失败、翻译结果为空、目标语言没有 TTS 供应商等)都不会真正播放东西,但这个 sequence 号已经分配出去了,必须显式调用 `skipPlaybackSequence(guildId, sequence)` 告诉播放队列"这个号位跳过、不用等",不然重排缓冲区会一直卡在等一个永远不会到来的号码,后面所有已经处理完的句子全部播不出来。`finally` 块统一处理(`if (!enqueued) skipPlaybackSequence(...)`),不用在每个 `return` 语句那里手动加一遍
+
+---
+
 ## 游戏黑话/专有名词术语库
 
 ### 问题
@@ -122,8 +135,11 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 ### 术语检测用哪种语言扫描
 `session.sourceLang`/`session.targetLang` **现在都没有默认值**(见 `session.js` 的 `createSession`)——`/join` 之后两个都是 `undefined`,行为不对称:
 
-- **`targetLang`**:必须显式 `/lang target:<语言>` 设置一次才能开始翻译,没有任何兜底。`/join` 成功后的回复文字会明确提示这一点。设置之前,`pipeline.js` 的 `handleSegment` 检测到 `session.targetLang` 是假值,**跳过 STT/翻译**(不浪费 API 额度),改为直接合成播报一句固定的英文提示("I can't translate yet — please set a target language first using the lang command")——这条提示**固定走 `deepgram` + `en`**,不看 `session.ttsProvider`(这时候 `targetLang` 可能压根还没设置过,没有 provider 上下文可用),保证提示本身播得出来。这个提示**没有做节流/去重**,每次有人说话且 target 还没设置就会播一次,连续说话会连续触发——刻意先做最简单的版本,如果实测太吵再加节流。
-- **`sourceLang`**:`/lang source:<语言>` 手动设置优先;没手动设置的话,**第一句话会让 STT 自动检测**(`transcribe` 不传 `language` 参数,Deepgram 走 `detect_language=true`),检测结果通过 `setSourceLang` 写回 `session.sourceLang`——是 **session(guild)级别的锁定,不是按说话人各自锁定**,之后同一场会话所有人共用这个源语言,不会每句话都重新检测。锁定的同时会往 `session.voiceChannel`(bot 加入的那个语音频道自带的文字聊天)发一条通知,告知用户自动检测并设置成了什么语言。
+- **`targetLang`**:必须显式 `/lang target:<语言>` 设置一次才能开始翻译,没有任何兜底。`/join` 成功后的回复文字会明确提示这一点。设置之前,`pipeline.js` 的 `handleSegment` 检测到 `session.targetLang` 是假值,**跳过 STT/翻译**(不浪费 API 额度),改为往 `session.voiceChannel` 发一条**固定文字提示**("⚠️ I can't translate yet — set a target language first with `/lang target:<language>`")。这条提示**故意不走语音播报**——最初的实现是合成播报语音,实测遇到过"日志显示播放成功、实际频道里完全没声音"这种静默失败(Discord 连接层面的权限/静音问题,bot 自己感知不到),排查成本高;文字消息走 `voiceChannel.send`,链路短得多,不依赖 TTS 供应商这条链路,失败了控制台也有明确报错,不会静默。这个提示**没有做节流/去重**,每次有人说话且 target 还没设置就会发一次,连续说话会连续触发、在频道文字聊天里堆好几条重复消息——刻意先做最简单的版本,如果实测太吵再加节流。
+- **`sourceLang`**:`/lang source:<语言>` 手动设置优先;没手动设置的话,**第一句话会让 STT 自动检测**(`transcribe` 不传 `language` 参数,Deepgram 走 `detect_language=true`),检测结果通过 `setSourceLang` 写回 `session.sourceLang`——是 **session(guild)级别的锁定,不是按说话人各自锁定**,之后同一场会话所有人共用这个源语言,不会每句话都重新检测。锁定的同时会往 `session.voiceChannel`(bot 加入的那个语音频道自带的文字聊天)发一条通知,告知用户自动检测并设置成了什么语言,并问一句"检测得对不对,不对就手动 `/lang source:<语言>`"。
+  - **检测结果要先过白名单**(`ports/stt.js` 的 `SUPPORTED_SOURCE_LANGS = ['zh','en','ko','ar']`,跟 `/lang source:` 手动能选的范围是同一个数组,`lang.js` 的 `SOURCE_LANG_CHOICES` 直接从这里派生,不会出现两边不一致):实测极短音频容易检测出离谱结果(0.86 秒的"hello hello"被判成 `cs` 捷克语;说印尼语"Halo halo"被判成 `id`,这个本身没判错但项目没打算支持)。检测结果不在白名单里就**不锁定**——锁进去的话之后整场会话都会用错误语言偏置 STT,把后续所有语音识别成乱码,比"没能自动锁定"严重得多
+  - **检测结果不在白名单里,也要往语音频道发文字通知**("检测失败,请手动设置"),不能什么都不做——最早的版本是纯打日志、不通知用户,会出现"一直卡着不锁定、用户完全不知道发生了什么"这种体验落差,所以两种情况(检测成功/检测到不支持的语言)都会发通知,只是内容不同
+  - **检测失败发完通知要 `return`,不能继续往下走**——中间版本加了通知但漏了这一步,导致刚提示完用户"没检测出你的语言,请手动设置",紧接着还是拿这句话(语言都没确认)去翻译、播报,逻辑前后矛盾。现在检测到不支持的语言时,发完通知直接 `return`,这句话不翻译、不播报;只有真的锁定成功(检测到白名单内的语言)才会继续往下走完整条流水线
 
 两个都是刻意的产品决定,不是疏漏:早期版本两者都有默认值(源=zh、目标=en 或读 `.env` 的 `SOURCE_LANG`/`TRANSLATE_TARGET_LANG`),但这样会悄悄把语言定成一个用户可能压根没注意到、也不是他们想要的选项。现在改成"target 强制显式设置,source 退而求其次靠自动检测兜底"。
 
@@ -163,7 +179,7 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 - 状态:Developer Portal 中已设为 Public(公开),已通过验证;实际使用仍限于开发者自建的私人测试 Discord 服务器,尚未走应用商店/App Directory 上架流程
 - 测试服务器:开发者自建的私人测试 Discord 服务器
 - 权限需求(OAuth2 URL Generator 中勾选):
-  - scope:`bot` + `applications.commands`(后者漏勾的话,`/join`/`/leave`/`/lang`/`/game` 这些斜杠命令邀请进服务器后不会生效)
+  - scope:`bot` + `applications.commands`(后者漏勾的话,`/join`/`/leave`/`/lang`/`/game`/`/reset` 这些斜杠命令邀请进服务器后不会生效)
   - bot 权限:查看频道、发送消息、连接语音、讲话、使用语音活动
 - 如涉及消息内容解析,需在 Developer Portal 手动开启 "Message Content Intent"
 

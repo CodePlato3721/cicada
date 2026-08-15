@@ -25,7 +25,7 @@ Discord 实时语音翻译 Bot。`/join` 后自动监听频道语音,本地 VAD 
 
 1. `npm install`
 2. 复制 `.env.example` 为 `.env`,按注释填好各项(至少要有 `DISCORD_BOT_TOKEN`、`DISCORD_CLIENT_ID`、一个翻译/STT 供应商的 API Key;TTS 按目标语言路由到 Deepgram/Azure,想用哪个目标语言就填对应供应商的 key,见 `.env.example` 里的说明)
-3. `npm run deploy-commands`——把 `/join`/`/leave`/`/lang`/`/game`/`/test` 注册到 `.env` 里 `DISCORD_TEST_GUILD_ID` 指定的测试服务器(必须先设这个变量,不然报错提示)
+3. `npm run deploy-commands`——把 `/join`/`/leave`/`/lang`/`/game`/`/reset`/`/test` 注册到 `.env` 里 `DISCORD_TEST_GUILD_ID` 指定的测试服务器(必须先设这个变量,不然报错提示)
 4. `npm start`——bot 上线,去测试服务器打 `/join` 验证
 
 **这一步经常忘、但很关键**:改了/新增了斜杠命令(比如新增一个命令文件、改了某个命令的参数),都要重新跑一次 `npm run deploy-commands`,不然 Discord 那边看不到新命令——改代码不会自动同步命令定义。
