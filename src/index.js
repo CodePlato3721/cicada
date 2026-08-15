@@ -6,6 +6,7 @@ import * as leave from './adapter/in/commands/leave.js';
 import * as test from './adapter/in/commands/test.js';
 import * as lang from './adapter/in/commands/lang.js';
 import * as game from './adapter/in/commands/game.js';
+import * as reset from './adapter/in/commands/reset.js';
 
 const commands = new Map([
   [join.data.name, join],
@@ -13,6 +14,7 @@ const commands = new Map([
   [test.data.name, test],
   [lang.data.name, lang],
   [game.data.name, game],
+  [reset.data.name, reset],
 ]);
 
 const client = new Client({

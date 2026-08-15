@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { getSession, setSourceLang, setTargetLang } from '../../../application/session.js';
 import { TTS_PROVIDER_BY_LANG } from '../../../application/ports/tts.js';
+import { SUPPORTED_SOURCE_LANGS } from '../../../application/ports/stt.js';
 
 // 这里统一用 'zh' 这个 ISO 码而不区分简繁——语音场景不需要在选语言的时候纠结简体/繁体，
 // 后端术语库内部用繁体匹配（见 terminology.js 的 opencc 正规化）跟这里选什么字面值无关，
@@ -26,12 +27,13 @@ const LANG_DISPLAY_NAMES = {
   pt: 'Portuguese (pt)',
 };
 
-const SOURCE_LANG_CHOICES = [
-  { name: 'Chinese (zh)', value: 'zh' },
-  { name: 'English (en)', value: 'en' },
-  { name: 'Korean (ko)', value: 'ko' },
-  { name: 'Arabic (ar)', value: 'ar' },
-];
+// 从 SUPPORTED_SOURCE_LANGS 生成，跟 pipeline.js 自动检测锁定时用的白名单是同一份——
+// 手动能选的语言范围，跟自动检测允许锁定的语言范围必须一致，不然会出现"手动能选但
+// 自动检测永远不会锁到"或者反过来的不一致，两处引用同一个数组从根上避免这个问题。
+const SOURCE_LANG_CHOICES = SUPPORTED_SOURCE_LANGS.map((lang) => ({
+  name: LANG_DISPLAY_NAMES[lang] ?? lang,
+  value: lang,
+}));
 
 // 从 TTS_PROVIDER_BY_LANG 的 key 生成，保证 target 选项永远跟"这个语言实际有没有 TTS
 // 供应商能播"这件事同步——以后加/删一个 TTS_PROVIDER_BY_LANG 条目，这里的选项自动跟着变，

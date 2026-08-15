@@ -5,6 +5,7 @@ import * as leave from './adapter/in/commands/leave.js';
 import * as test from './adapter/in/commands/test.js';
 import * as lang from './adapter/in/commands/lang.js';
 import * as game from './adapter/in/commands/game.js';
+import * as reset from './adapter/in/commands/reset.js';
 
 // 稳定功能：验证过没问题、打算对外正式开放的命令。全局注册只会推这个列表。
 const stableCommands = [
@@ -12,6 +13,7 @@ const stableCommands = [
   leave.data.toJSON(),
   lang.data.toJSON(),
   game.data.toJSON(),
+  reset.data.toJSON(),
 ];
 
 // 调试/开发中命令：只在测试服务器可见，不应该全局暴露给外部用户。
