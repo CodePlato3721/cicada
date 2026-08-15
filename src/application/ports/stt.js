@@ -1,5 +1,8 @@
 import { transcribe as groqTranscribe } from '../../adapter/out/groq/stt.js';
 import { transcribe as deepgramTranscribe } from '../../adapter/out/deepgram/stt.js';
+import { createLogger } from '../../adapter/out/logger.js';
+
+const logger = createLogger('ports/stt');
 
 // STT 端口：契约 transcribe(filePath, { language, prompt }) => Promise<{ text, ... }>，
 // pipeline.js 只用得到返回值的 .text 字段，其他字段（language/duration 等）不保证跨供应商一致。
@@ -15,7 +18,7 @@ if (!impl) {
   throw new Error(`未知的 STT_PROVIDER: "${PROVIDER_NAME}"，可选：${Object.keys(PROVIDERS).join(', ')}`);
 }
 
-console.log(`[ports/stt] STT 供应商：${PROVIDER_NAME}`);
+logger.info({ provider: PROVIDER_NAME }, `STT 供应商：${PROVIDER_NAME}`);
 
 export function transcribe(filePath, options) {
   return impl(filePath, options);

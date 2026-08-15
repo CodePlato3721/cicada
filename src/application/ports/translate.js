@@ -1,5 +1,8 @@
 import { translate as groqTranslate } from '../../adapter/out/groq/translate.js';
 import { translate as deepseekTranslate } from '../../adapter/out/deepseek/translate.js';
+import { createLogger } from '../../adapter/out/logger.js';
+
+const logger = createLogger('ports/translate');
 
 // 翻译端口：application 层只认这个文件，不直接 import 任何具体供应商的 adapter。
 // 契约：translate(text: string, targetLang: string) => Promise<string>，
@@ -18,7 +21,7 @@ if (!impl) {
   );
 }
 
-console.log(`[ports/translate] 翻译供应商：${PROVIDER_NAME}`);
+logger.info({ provider: PROVIDER_NAME }, `翻译供应商：${PROVIDER_NAME}`);
 
 export function translate(text, targetLang) {
   return impl(text, targetLang);

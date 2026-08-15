@@ -1,5 +1,8 @@
 import { GAMES } from '../domain/games.js';
 import { resolveTtsProvider } from './ports/tts.js';
+import { createLogger } from '../adapter/out/logger.js';
+
+const logger = createLogger('session');
 
 // guildId -> { connection, voiceChannel, speakers: Map<userId, speakerState>, sourceLang, targetLang, ttsProvider, game }
 // 这是整个应用运行期最接近"Model"的东西——不持久化，只在进程存活期间记录
@@ -62,7 +65,7 @@ export function setSourceLang(guildId, lang) {
   if (!session) return false;
 
   session.sourceLang = lang;
-  console.log(`[session] guild ${guildId} 源语言设为：${lang}`);
+  logger.info({ guildId, sourceLang: lang }, `guild ${guildId} 源语言设为：${lang}`);
   return true;
 }
 
@@ -77,8 +80,9 @@ export function setTargetLang(guildId, lang) {
 
   session.targetLang = lang;
   session.ttsProvider = resolveTtsProvider(lang);
-  console.log(
-    `[session] guild ${guildId} 目标语言设为：${lang}，TTS 供应商：${session.ttsProvider ?? '（无——这个语言没法出声音，只有译文文字）'}`,
+  logger.info(
+    { guildId, targetLang: lang, ttsProvider: session.ttsProvider ?? null },
+    `guild ${guildId} 目标语言设为：${lang}，TTS 供应商：${session.ttsProvider ?? '（无——这个语言没法出声音，只有译文文字）'}`,
   );
   return true;
 }
@@ -91,7 +95,7 @@ export function setGame(guildId, gameId) {
   if (!session) return false;
 
   session.game = gameId;
-  console.log(`[session] guild ${guildId} 游戏设为：${gameId}`);
+  logger.info({ guildId, game: gameId }, `guild ${guildId} 游戏设为：${gameId}`);
   return true;
 }
 
@@ -107,7 +111,7 @@ export function resetSessionSettings(guildId) {
   session.targetLang = undefined;
   session.ttsProvider = undefined;
   session.game = GAMES[0]?.id;
-  console.log(`[session] guild ${guildId} 设置已重置（源/目标语言、TTS 供应商、游戏选择恢复初始状态）`);
+  logger.info({ guildId }, `guild ${guildId} 设置已重置（源/目标语言、TTS 供应商、游戏选择恢复初始状态）`);
   return true;
 }
 

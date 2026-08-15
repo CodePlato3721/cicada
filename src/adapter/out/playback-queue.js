@@ -1,4 +1,7 @@
 import { playPcmInChannel } from './playback.js';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('playback-queue');
 
 // 每个 guild 一条播放队列：STT/翻译/TTS 可以为不同句子并发跑（pipeline.js 顶部注释
 // "发射后不管"），处理快的句子可能比处理慢的句子先跑到这里——如果单纯按"谁先到就先播"
@@ -55,7 +58,7 @@ async function drain(guildId) {
     try {
       await playPcmInChannel(state.connection, pcm);
     } catch (err) {
-      console.error('播放队列出错：', err);
+      logger.error({ err, guildId }, '播放队列出错');
     }
   }
   state.running = false;

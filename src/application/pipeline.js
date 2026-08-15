@@ -8,6 +8,9 @@ import { synthesize } from './ports/tts.js';
 import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
 import { getSession, listSpeakers, setSourceLang } from './session.js';
 import { assignVoice } from './voice-assignment.js';
+import { createLogger } from '../adapter/out/logger.js';
+
+const logger = createLogger('pipeline');
 
 // 显式设置 TTS_VOICE 就强制所有人用同一个音色（调试/回退用）；不设置就默认按
 // 每个说话人检测到的性别、当前 session.ttsProvider 分配音色（见 resolveSpeakerVoice）。
@@ -29,7 +32,7 @@ const TARGET_LANG_NOT_SET_MESSAGE =
 async function sendTargetLangNotSetReminder(session) {
   await session.voiceChannel
     ?.send(TARGET_LANG_NOT_SET_MESSAGE)
-    .catch((err) => console.error('[pipeline] 发送目标语言未设置提示失败：', err));
+    .catch((err) => logger.error({ err }, '发送目标语言未设置提示失败'));
 }
 
 // 说话人第一次开口时判断性别，纯声学特征、跟 TTS 供应商无关，只需要判一次、
@@ -41,7 +44,10 @@ function detectSpeakerGender(speakerState, monoFloat32) {
   speakerState.gender = gender;
 
   const pitchInfo = medianHz ? `基频≈${medianHz.toFixed(0)}Hz` : '音量太低/太短，无法判断，随机选的';
-  console.log(`[pipeline] ${speakerState.label} 首次开口，判定性别=${gender}（${pitchInfo}）`);
+  logger.info(
+    { speaker: speakerState.label, gender, medianHz: medianHz ?? null },
+    `${speakerState.label} 首次开口，判定性别=${gender}（${pitchInfo}）`,
+  );
 }
 
 // 每个说话人在每个"供应商+语言"组合下各自固定一个音色，缓存在
@@ -67,7 +73,10 @@ function resolveSpeakerVoice(guildId, speakerState, provider, lang) {
   );
   const voice = assignVoice(speakerState.gender, usedVoices, provider, lang);
   speakerState.voicesByProviderLang[cacheKey] = voice;
-  console.log(`[pipeline] ${speakerState.label} 首次用 ${provider}(${lang}) 播报，分配音色：${voice}`);
+  logger.info(
+    { speaker: speakerState.label, provider, lang, voice },
+    `${speakerState.label} 首次用 ${provider}(${lang}) 播报，分配音色：${voice}`,
+  );
   return voice;
 }
 
@@ -95,6 +104,9 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
   const t0 = Date.now();
   const elapsed = () => `${Date.now() - t0}ms`;
   const who = speakerState.label ?? userId;
+  // 每条日志都带上这三个字段，方便以后按 guild/说话人/句子搜（sequence 就是
+  // session.js 分配的那个播放顺序号，同一句话从 STT 到播放全程都是同一个值）。
+  const ctx = { guildId, userId, sequence };
 
   let enqueued = false;
   try {
@@ -104,22 +116,22 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
     if (!session?.targetLang) {
       // 目标语言从没设置过（没有默认值，见 session.js）——不翻译、不消耗 STT/翻译额度，
       // 每次说话都直接发一条固定文字提示，逼着用户先 /lang target:<语言> 一次。
-      console.log(`[pipeline] ${who} 目标语言未设置，跳过 STT/翻译，发文字提示`);
+      logger.info({ ...ctx, who }, `${who} 目标语言未设置，跳过 STT/翻译，发文字提示`);
       await sendTargetLangNotSetReminder(session);
       return;
     }
 
     const stamp = Date.now();
     const segmentFile = await saveInputRecording(userId, stamp, monoFloat32, 16000);
-    console.log(`[pipeline] ${who} [${elapsed()}] 音频已存盘，开始 STT`);
+    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] 音频已存盘，开始 STT`);
 
     // 源语言没手动设置过（session.sourceLang 是假值）就交给 STT 自动检测——记下这次调用
     // 之前是不是这个状态，STT 返回之后好判断这次是不是"第一句话，需要锁定检测结果"。
     const wasSourceLangUnset = !session.sourceLang;
     if (session.sourceLang) {
-      console.log(`[pipeline] ${who} 源语言：${session.sourceLang}`);
+      logger.info({ ...ctx, who, sourceLang: session.sourceLang }, `${who} 源语言：${session.sourceLang}`);
     } else {
-      console.log(`[pipeline] ${who} 源语言尚未设置，本次调用 STT 自动检测`);
+      logger.info({ ...ctx, who }, `${who} 源语言尚未设置，本次调用 STT 自动检测`);
     }
 
     const targetLang = session.targetLang;
@@ -135,7 +147,7 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
       // =true 时是留存证据，deleteRecording 内部是 no-op。
       await deleteRecording(segmentFile);
     }
-    console.log(`[pipeline] ${who} [${elapsed()}] STT 返回`);
+    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] STT 返回`);
 
     // 这次是自动检测、且真的检测出语种了——锁定进 session（跟 /lang source:<语言> 手动
     // 设置效果一样，走同一个 setSourceLang，之后所有人共用这个源语言，不用每句话都重新
@@ -155,37 +167,38 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
     // 宁可可能连续提示几次，也不要让用户在没有任何反馈的情况下自己纳闷。
     if (wasSourceLangUnset && result.language) {
       if (!SUPPORTED_SOURCE_LANGS.includes(result.language)) {
-        console.log(
-          `[pipeline] ${who} 自动检测到源语言："${result.language}"，不在支持范围(${SUPPORTED_SOURCE_LANGS.join('/')})内，提示用户手动设置`,
+        logger.info(
+          { ...ctx, who, detectedLang: result.language },
+          `${who} 自动检测到源语言："${result.language}"，不在支持范围(${SUPPORTED_SOURCE_LANGS.join('/')})内，提示用户手动设置`,
         );
         session.voiceChannel
           ?.send(
             `⚠️ Couldn't auto-detect your language (got "${result.language}", which isn't supported). ` +
               'Please set it manually with `/lang source:<language>`.',
           )
-          .catch((err) => console.error('[pipeline] 发送源语言检测失败通知失败：', err));
+          .catch((err) => logger.error({ err }, '发送源语言检测失败通知失败'));
         // 源语言没能确认下来，这段话的翻译/播报就没有意义——不往下走了。之前这里没有
         // return，导致刚提示完用户"没检测出你的语言、请手动设置"，紧接着又拿这句话
         // （语言都没确认）翻译播报出来，逻辑上前后矛盾，体验也很奇怪。
         return;
       } else {
         setSourceLang(guildId, result.language);
-        console.log(`[pipeline] ${who} 自动检测到源语言：${result.language}，已锁定`);
+        logger.info({ ...ctx, who, detectedLang: result.language }, `${who} 自动检测到源语言：${result.language}，已锁定`);
         session.voiceChannel
           ?.send(
             `🌐 Detected and set the source language to **${result.language}** based on the first thing said. ` +
               'Is that correct? If not, set it manually with `/lang source:<language>`.',
           )
-          .catch((err) => console.error('[pipeline] 发送自动检测语言通知失败：', err));
+          .catch((err) => logger.error({ err }, '发送自动检测语言通知失败'));
       }
     }
 
     const transcriptText = result.text?.trim();
     if (!transcriptText) {
-      console.log(`[pipeline] ${who} 说的这段没识别出文字，跳过`);
+      logger.info({ ...ctx, who }, `${who} 说的这段没识别出文字，跳过`);
       return;
     }
-    console.log(`[pipeline] ${who} 原文: "${transcriptText}"`);
+    logger.info({ ...ctx, who, transcript: transcriptText }, `${who} 原文: "${transcriptText}"`);
     speakerState.lastTranscript = transcriptText;
 
     // 术语库检测：命中当前 /game 选定游戏的黑话就本地换成目标语言真实译词、用 <keep>
@@ -198,19 +211,19 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
       session?.game,
     );
     if (hitCount > 0) {
-      console.log(`[pipeline] ${who} 命中 ${hitCount} 个术语，预处理后送翻译: "${preparedText}"`);
+      logger.info({ ...ctx, who, hitCount, preparedText }, `${who} 命中 ${hitCount} 个术语，预处理后送翻译: "${preparedText}"`);
     }
 
     const rawTranslatedText = await translate(preparedText, targetLang);
-    console.log(`[pipeline] ${who} [${elapsed()}] 翻译返回`);
+    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] 翻译返回`);
     if (hitCount > 0) {
-      console.log(`[pipeline] ${who} 翻译原始输出(校验用，含 <keep> 标签): "${rawTranslatedText}"`);
+      logger.info({ ...ctx, who, rawTranslatedText }, `${who} 翻译原始输出(校验用，含 <keep> 标签): "${rawTranslatedText}"`);
     }
     const translatedText = stripKeepTags(rawTranslatedText);
-    console.log(`[pipeline] ${who} 译文(${targetLang}): "${translatedText}"`);
+    logger.info({ ...ctx, who, targetLang, translatedText }, `${who} 译文(${targetLang}): "${translatedText}"`);
 
     if (!translatedText) {
-      console.log(`[pipeline] ${who} 翻译结果为空，跳过播放`);
+      logger.info({ ...ctx, who }, `${who} 翻译结果为空，跳过播放`);
       return;
     }
     if (!provider) {
@@ -218,13 +231,19 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
       // TTS_PROVIDER_BY_LANG 里、没有对应供应商，播放这一步被跳过，日志上完全看不出
       // 发生了什么，排查起来像是整条链路挂了。加一行日志，至少让人一眼看出"翻译成功了，
       // 只是这个语言没法播报"，不是别的环节坏了。
-      console.log(`[pipeline] ${who} 目标语言 "${targetLang}" 没有对应的 TTS 供应商，只有译文没有语音播报`);
+      logger.info(
+        { ...ctx, who, targetLang },
+        `${who} 目标语言 "${targetLang}" 没有对应的 TTS 供应商，只有译文没有语音播报`,
+      );
       return;
     }
 
     const voice = TTS_VOICE_OVERRIDE ?? resolveSpeakerVoice(guildId, speakerState, provider, targetLang);
     const ttsWav = await synthesize(translatedText, { voice, targetLang, provider });
-    console.log(`[pipeline] ${who} [${elapsed()}] TTS 返回（供应商：${provider}，音色：${voice}），进入播放队列`);
+    logger.info(
+      { ...ctx, who, elapsedMs: Date.now() - t0, provider, voice },
+      `${who} [${elapsed()}] TTS 返回（供应商：${provider}，音色：${voice}），进入播放队列`,
+    );
     await saveOutputRecording(userId, stamp, ttsWav);
 
     const pcm = ttsWavToDiscordPcm(ttsWav);

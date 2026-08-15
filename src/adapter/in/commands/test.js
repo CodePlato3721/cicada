@@ -2,6 +2,9 @@ import { SlashCommandBuilder } from 'discord.js';
 import { getVoiceConnection } from '@discordjs/voice';
 import { playPcmInChannel } from '../../out/playback.js';
 import { generateTestMelodyPcm } from '../../../domain/test-tone.js';
+import { createLogger } from '../../out/logger.js';
+
+const logger = createLogger('commands/test');
 
 export const data = new SlashCommandBuilder()
   .setName('test')
@@ -26,7 +29,7 @@ export async function execute(interaction) {
       ephemeral: true,
     });
   } catch (err) {
-    console.error('播放测试音效失败：', err);
+    logger.error({ err }, '播放测试音效失败');
     await interaction.followUp({ content: 'Playback failed. Check the console logs for details.', ephemeral: true });
   }
 }

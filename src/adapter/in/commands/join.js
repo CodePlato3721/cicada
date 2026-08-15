@@ -3,6 +3,9 @@ import { joinVoiceChannel, entersState, VoiceConnectionStatus } from '@discordjs
 import { startListening } from '../voice-listener.js';
 import { playPcmInChannel } from '../../out/playback.js';
 import { generateTestMelodyPcm } from '../../../domain/test-tone.js';
+import { createLogger } from '../../out/logger.js';
+
+const logger = createLogger('commands/join');
 
 export const data = new SlashCommandBuilder()
   .setName('join')
@@ -43,7 +46,7 @@ export async function execute(interaction) {
     try {
       await playPcmInChannel(connection, generateTestMelodyPcm());
     } catch (err) {
-      console.error('[join] /join 后自检音效播放失败：', err);
+      logger.error({ err }, '/join 后自检音效播放失败');
     }
 
     // 第二条消息：语言设置说明 + /leave，跟第一条的"能不能听到声音"这个自检关注点
@@ -57,7 +60,7 @@ export async function execute(interaction) {
       ephemeral: true,
     });
   } catch (err) {
-    console.error('加入语音频道失败：', err);
+    logger.error({ err }, '加入语音频道失败');
     await interaction.editReply('Failed to join the voice channel. Check the console logs for details.');
   }
 }

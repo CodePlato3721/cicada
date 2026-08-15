@@ -106,6 +106,31 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 
 ---
 
+## 日志规范化(`src/adapter/out/logger.js`)
+
+### 问题
+之前 85 处 `console.log`/`console.error` 散落在各个文件里,格式各自为政:大部分只有手写的 `[pipeline]`/`[listener]` 这类前缀、完全没有时间戳;`voice-listener.js` 里少数几处手动拼了 `new Date().toLocaleTimeString()`。ssh 上去看日志,时间信息有的有有的没有、格式还不统一,没法按时间/模块可靠地过滤,跟 `dmesg`/`journalctl` 这类自带统一时间戳格式的系统日志混着看时尤其乱。
+
+### 方案
+统一用 [pino](https://github.com/pinojs/pino)(轻量、异步写、开销低,适合这台 1 vCPU/1GB 的 droplet),不引入自建的重量级日志平台(见下面「不做的事」)。
+
+- `createLogger(module)` 返回一个带 `module` 字段的 child logger,对应以前手写的 `[pipeline]`/`[listener]` 前缀——现在是结构化字段,不是拼进 message 字符串里,以后要按模块过滤直接查 JSON 字段就行
+- 每条日志自带 ISO 时间戳(`timestamp: pino.stdTimeFunctions.isoTime`,pino 默认是不好读的 epoch 毫秒数,显式换成 ISO 字符串)——`voice-listener.js` 那几处手动 `toLocaleTimeString()` 已经删掉,不再需要,logger 自己保证了时间戳的一致性
+- 输出格式按 `process.stdout.isTTY` 自动切换,不需要额外配置或环境变量区分环境:
+  - 本地 `npm start`(交互式终端,是 TTY)→ 接 `pino-pretty`,人读着舒服的单行彩色格式
+  - pm2 托管运行(stdout 被重定向进日志文件,不是 TTY)→ 原始 JSON,一行一条
+  - `pino-pretty` 只有 TTY 分支才会被 `require`,纯 pm2 环境走不到这条路径,所以放在 `devDependencies` 里,生产环境 `npm ci --omit=dev` 装出来的东西不需要它、也不会因为缺这个包报错
+- `LOG_LEVEL` 环境变量控制级别(trace/debug/info/warn/error/fatal),默认 `info`
+- 错误日志统一传 `{ err }` 让 pino 用自带的 error serializer(带 stack),不是把 Error 对象直接拼进字符串
+- **范围界定**:只改了长期运行的 bot 进程(`src/index.js` 及其依赖的 `application`/`adapter` 代码)。`scripts/*.js`(术语库抓取/合并脚本)和 `src/deploy-commands.js` 是人工手动跑一次就完事的 CLI 工具,输出是给当场盯着看的人读的,不是给以后搜索/聚合用的,保留原来的 `console.log`,没有必要性价比不高地全部换掉
+
+### 不做的事:自建 Kibana/ELK 式的日志平台
+讨论过要不要把日志集中到一个类似公司里用的 Kibana 的平台,方便不用每次都 ssh 上去看。结论是**这台机器上不自建**——Elasticsearch 起步就要奔着 1GB 内存去,这台 droplet 总共只有 1GB 内存 + 2GB swap,自己装等于日志系统把翻译服务本身挤爆,本末倒置,跟当年公司那个量级不是一回事。
+
+现在这一步(规范化格式)已经先把日志变成结构化 JSON,如果以后真觉得"总是要 ssh 才能看"太麻烦,再加一层：给 pino 配 transport 把日志异步推到 Better Stack / Axiom / Grafana Cloud(Loki)这类有免费额度的托管服务,浏览器里搜索/建面板,不用自己运维 Elasticsearch,也不占这台机器的资源。这层还没做,不是遗漏,是刻意排到后面——先解决"格式乱"这个当下最直接的痛点,platform 那层等真觉得 ssh 麻烦了再加。
+
+---
+
 ## VAD 切句注意事项
 
 - VAD 本身运算量极小(毫秒级,CPU 可跑),延迟主要来自"等待静音间隔"这个机制本身,不是算法慢
