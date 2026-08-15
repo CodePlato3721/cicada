@@ -4,6 +4,9 @@ import { mkdir, writeFile, readdir, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { monoFloat32ToInt16Buffer } from '../../domain/pcm.js';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('recordings');
 
 // 把语音段落盘成 wav 文件。输入段这份不是纯调试用途——Groq STT 的 SDK 要求传文件路径
 // （内部用 createReadStream 读取），所以这次落盘是主链路里必须的一步；
@@ -49,7 +52,7 @@ export async function saveInputRecording(userId, stamp, monoFloat32, sampleRate)
   }
 
   await ensureDir();
-  pruneOldRecordings().catch((err) => console.error('[recordings] 清理旧录音失败：', err));
+  pruneOldRecordings().catch((err) => logger.error({ err }, '清理旧录音失败'));
   const filename = join(RECORDINGS_DIR, `${userId}-${stamp}.wav`);
   await writeMonoWav(filename, monoFloat32, sampleRate);
   return filename;

@@ -13,6 +13,9 @@ import {
   listSpeakers,
   nextPlaybackSequence,
 } from '../../application/session.js';
+import { createLogger } from '../out/logger.js';
+
+const logger = createLogger('listener');
 
 // guildId -> { onSpeakingStart, onSpeakingEnd }：Discord 事件监听器的引用，只用于
 // /leave 时能对称地 off() 掉。这是纯 adapter 细节，不属于业务状态，不放进 application/session.js。
@@ -28,11 +31,12 @@ export function startListening(connection, voiceChannel) {
 
   const onSpeakingStart = (userId) => {
     // 诊断用：Discord 检测到这个人开始说话的时刻，跟 VAD 确认"这是人声"的时刻对比，
-    // 能看出是不是网络/@discordjs-voice 这一层就已经有延迟。
-    console.log(`[listener] ${userId} ${new Date().toLocaleTimeString()} Discord 检测到开始说话`);
+    // 能看出是不是网络/@discordjs-voice 这一层就已经有延迟——两条日志各自的 time 字段
+    // 就是时间点，不用再在消息文本里手动拼一遍时间。
+    logger.info({ userId }, `${userId} Discord 检测到开始说话`);
     if (hasSpeaker(guildId, userId)) return; // 已经在监听这个人了
     createSpeakerPipeline(guildId, connection, userId).catch((err) => {
-      console.error(`[listener] 初始化说话人 ${userId} 的监听失败：`, err);
+      logger.error({ err, userId }, `初始化说话人 ${userId} 的监听失败`);
     });
   };
 
@@ -46,7 +50,7 @@ export function startListening(connection, voiceChannel) {
   connection.receiver.speaking.on('start', onSpeakingStart);
   connection.receiver.speaking.on('end', onSpeakingEnd);
 
-  console.log(`[listener] 已开始自动监听 guild ${guildId} 里的语音`);
+  logger.info({ guildId }, `已开始自动监听 guild ${guildId} 里的语音`);
 }
 
 export function stopListening(guildId) {
@@ -68,7 +72,7 @@ export function stopListening(guildId) {
 
   deleteSession(guildId);
   clearPlaybackQueue(guildId);
-  console.log(`[listener] 已停止监听 guild ${guildId}`);
+  logger.info({ guildId }, `已停止监听 guild ${guildId}`);
 }
 
 async function createSpeakerPipeline(guildId, connection, userId) {
@@ -89,14 +93,14 @@ async function createSpeakerPipeline(guildId, connection, userId) {
 
   const handleDetectedSegment = (segment) => {
     const durationSec = (segment.length / 16000).toFixed(2);
-    console.log(`[listener] ${userId} ${new Date().toLocaleTimeString()} VAD 判定一句话结束，音频时长 ${durationSec}s`);
+    logger.info({ userId, durationSec }, `${userId} VAD 判定一句话结束，音频时长 ${durationSec}s`);
     // 播放顺序号必须在这里、同步分配——这一刻就是"这句话真正说完"的时刻，代表它在
     // 整场会话里的实际先后顺序。不能等 handleSegment 异步处理完再分配，那样分配到的
     // 是"处理完的顺序"，STT/翻译并发跑、处理快慢不一，起不到重排的作用（见
     // playback-queue.js 顶部注释）。
     const sequence = nextPlaybackSequence(guildId);
     handleSegment(guildId, connection, userId, segment, speakerState, sequence).catch((err) => {
-      console.error(`[listener] 处理 ${userId} 的一段语音失败：`, err);
+      logger.error({ err, userId, sequence }, `处理 ${userId} 的一段语音失败`);
     });
   };
 
@@ -117,19 +121,19 @@ async function createSpeakerPipeline(guildId, connection, userId) {
         if (job.type === 'chunk') {
           const segments = await vad.feed(job.data, {
             onSpeechStart: () => {
-              console.log(`[listener] ${userId} ${new Date().toLocaleTimeString()} VAD 确认这是人声，开始计入一句话`);
+              logger.info({ userId }, `${userId} VAD 确认这是人声，开始计入一句话`);
             },
           });
           for (const segment of segments) handleDetectedSegment(segment);
         } else if (job.type === 'forceEnd') {
           const segment = vad.forceEnd();
           if (segment) {
-            console.log(`[listener] ${userId} ${new Date().toLocaleTimeString()} 音频流暂停，强制收尾这一句`);
+            logger.info({ userId }, `${userId} 音频流暂停，强制收尾这一句`);
             handleDetectedSegment(segment);
           }
         }
       } catch (err) {
-        console.error(`[listener] 处理 ${userId} 的音频任务失败：`, err);
+        logger.error({ err, userId }, `处理 ${userId} 的音频任务失败`);
       }
     }
 
@@ -147,9 +151,9 @@ async function createSpeakerPipeline(guildId, connection, userId) {
     drainJobQueue();
   };
 
-  opusStream.on('error', (err) => console.error(`[listener] ${userId} 的 opus 流出错：`, err));
-  decoder.on('error', (err) => console.error(`[listener] ${userId} 的解码流出错：`, err));
+  opusStream.on('error', (err) => logger.error({ err, userId }, `${userId} 的 opus 流出错`));
+  decoder.on('error', (err) => logger.error({ err, userId }, `${userId} 的解码流出错`));
 
   addSpeaker(guildId, userId, speakerState);
-  console.log(`[listener] 开始监听说话人 ${userId}`);
+  logger.info({ userId }, `开始监听说话人 ${userId}`);
 }

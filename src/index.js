@@ -1,6 +1,7 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import { generateDependencyReport } from '@discordjs/voice';
 import { config } from './config.js';
+import { createLogger } from './adapter/out/logger.js';
 import * as join from './adapter/in/commands/join.js';
 import * as leave from './adapter/in/commands/leave.js';
 import * as test from './adapter/in/commands/test.js';
@@ -24,10 +25,12 @@ const client = new Client({
   ],
 });
 
-console.log(generateDependencyReport());
+const logger = createLogger('index');
+
+logger.info(generateDependencyReport());
 
 client.once(Events.ClientReady, (readyClient) => {
-  console.log(`已上线，登录为 ${readyClient.user.tag}`);
+  logger.info(`已上线，登录为 ${readyClient.user.tag}`);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -39,7 +42,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     await command.execute(interaction);
   } catch (error) {
-    console.error(`执行命令 ${interaction.commandName} 时出错：`, error);
+    logger.error({ err: error, command: interaction.commandName }, `执行命令 ${interaction.commandName} 时出错`);
   }
 });
 
