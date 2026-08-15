@@ -4,51 +4,71 @@ import { applyTerminology, stripKeepTags } from '../domain/terminology.js';
 import { saveInputRecording, deleteRecording, saveOutputRecording } from '../adapter/out/recordings.js';
 import { transcribe } from './ports/stt.js';
 import { translate } from './ports/translate.js';
-import { synthesize, TTS_SUPPORTED_LANGS } from './ports/tts.js';
+import { synthesize } from './ports/tts.js';
 import { enqueuePlayback } from '../adapter/out/playback-queue.js';
-import { getSession, listSpeakers } from './session.js';
+import { getSession, listSpeakers, setSourceLang } from './session.js';
 import { assignVoice } from './voice-assignment.js';
 
-// 目标语言不再是进程启动时定死的常量——现在可以用 /lang target:<语言> 按 guild 实时改，
-// 所以每次处理都要从 session 里现读，见下面 handleSegment。这个常量只是兜底
-// （正常流程 session 一定存在，因为 handleSegment 只会在 /join 之后才被调用）。
-const DEFAULT_TARGET_LANG = process.env.TRANSLATE_TARGET_LANG || 'en';
 // 显式设置 TTS_VOICE 就强制所有人用同一个音色（调试/回退用）；不设置就默认按
-// 每个说话人检测到的性别分配音色（见 assignSpeakerVoice），整场会话保持不变。
+// 每个说话人检测到的性别、当前 session.ttsProvider 分配音色（见 resolveSpeakerVoice）。
+// 注意：多供应商场景下这个覆盖值只对"当前恰好路由到的那个供应商"有效——比如设成一个
+// Deepgram 的音色名，目标语言换成 zh、路由去了 azure，这个覆盖值就是无效的音色名，
+// 会在 synthesize 里报错。这是调试/回退功能本来的定位（单一供应商场景下用），
+// 多供应商场景下用这个覆盖要自己确认当前目标语言实际会路由到哪个供应商。
 const TTS_VOICE_OVERRIDE = process.env.TTS_VOICE || undefined;
-// 哪些目标语言支持出语音（而不只是出文字）由当前 TTS_PROVIDER 决定——
-// Groq(Orpheus) 只支持英/阿，Qwen 支持中/英/日韩等更多语言，见对应 adapter 的 TTS_SUPPORTED_LANGS。
 
-// 说话人第一次开口时，用这段语音判断性别、分配一个音色，之后整场会话固定用这个音色
-// （不会中途换声音）。判不出性别也没关系，直接在全部音色里随便选一个，不阻塞流程。
-function assignSpeakerVoice(guildId, speakerState, monoFloat32) {
-  if (speakerState.voice) return; // 已经分配过，跳过
+// 目标语言还没设置时播报的固定提示——不翻译、不经过 LLM，永远走 deepgram + 英文念
+// （这条提示本身不看 session.ttsProvider，因为这时候 targetLang 可能压根还没设置过，
+// 没有 provider 上下文可用；固定用一个保底组合，保证提示本身播得出来）。内容特意不
+// 逐字念 "/lang target:xx" 这种命令语法（念出来很怪），只说清楚"现在没法翻译、要先
+// 设置"这件事，具体怎么设置由 /join 的文字回复说明。
+const TARGET_LANG_NOT_SET_MESSAGE =
+  "I can't translate yet — please set a target language first using the lang command.";
+const TARGET_LANG_NOT_SET_VOICE = 'aura-2-orion-en';
 
-  const { gender, medianHz } = estimateGender(monoFloat32);
-  const usedVoices = new Set(
-    Array.from(listSpeakers(guildId))
-      .filter((speaker) => speaker !== speakerState && speaker.voice)
-      .map((speaker) => speaker.voice),
-  );
-  speakerState.voice = assignVoice(gender, usedVoices);
-
-  const pitchInfo = medianHz ? `基频≈${medianHz.toFixed(0)}Hz` : '音量太低/太短，无法判断，随机选的';
-  console.log(`[pipeline] ${speakerState.label} 首次开口，判定性别=${gender}（${pitchInfo}），分配音色：${speakerState.voice}`);
+async function playTargetLangNotSetReminder(guildId, connection, userId, stamp) {
+  const ttsWav = await synthesize(TARGET_LANG_NOT_SET_MESSAGE, {
+    voice: TARGET_LANG_NOT_SET_VOICE,
+    targetLang: 'en',
+    provider: 'deepgram',
+  });
+  await saveOutputRecording(userId, stamp, ttsWav);
+  const pcm = ttsWavToDiscordPcm(ttsWav);
+  enqueuePlayback(guildId, connection, pcm);
 }
 
-// 术语库检测（terminology.js）需要知道"这段话是什么语言"才能查对应语言的自动机。
-// session.sourceLang 现在有系统默认值（zh），不再是"未设置就是 undefined/自动检测"，
-// 所以下面这个函数第一行的 `if (sourceLang) return sourceLang` 目前总是会命中——
-// 后面"用说话人第一段话的 STT 识别结果锁定语种"这条分支暂时是死代码，不会被触发。
-// 留着不删是因为逻辑本身没问题，万一以后 /lang 又想开放"自动检测"这个选项，
-// 直接把这个分支接回命令层就行，不用重新写。
-function resolveSpeakerLang(sourceLang, speakerState, sttResult) {
-  if (sourceLang) return sourceLang;
-  if (!speakerState.lang && sttResult.language) {
-    speakerState.lang = sttResult.language;
-    console.log(`[pipeline] ${speakerState.label ?? '?'} 首次开口，自动检测语种并锁定：${speakerState.lang}`);
-  }
-  return speakerState.lang;
+// 说话人第一次开口时判断性别，纯声学特征、跟 TTS 供应商无关，只需要判一次、
+// 整场会话不变（不会因为目标语言/供应商切换而重新判断）。
+function detectSpeakerGender(speakerState, monoFloat32) {
+  if (speakerState.gender) return; // 已经判过，跳过
+
+  const { gender, medianHz } = estimateGender(monoFloat32);
+  speakerState.gender = gender;
+
+  const pitchInfo = medianHz ? `基频≈${medianHz.toFixed(0)}Hz` : '音量太低/太短，无法判断，随机选的';
+  console.log(`[pipeline] ${speakerState.label} 首次开口，判定性别=${gender}（${pitchInfo}）`);
+}
+
+// 每个说话人在每个 TTS 供应商下各自固定一个音色，缓存在 speakerState.voicesByProvider
+// （provider -> voice）。不同供应商的音色命名空间完全不通用（Deepgram 是
+// "aura-2-xxx-en" 这种，Azure 是 "zh-TW-XxxNeural" 这种），没法直接复用同一个音色名；
+// 目标语言变化导致供应商切换时，会给新供应商单独分配一个（跟旧供应商听感未必一致，
+// 这是多供应商架构没法避免的取舍——同一个人切换目标语言前后，声音可能会变）。
+// 只要供应商没变，同一个说话人在这个供应商下的音色整场保持不变。
+function resolveSpeakerVoice(guildId, speakerState, provider) {
+  speakerState.voicesByProvider ??= {};
+  if (speakerState.voicesByProvider[provider]) return speakerState.voicesByProvider[provider];
+
+  const usedVoices = new Set(
+    Array.from(listSpeakers(guildId))
+      .filter((speaker) => speaker !== speakerState)
+      .map((speaker) => speaker.voicesByProvider?.[provider])
+      .filter(Boolean),
+  );
+  const voice = assignVoice(speakerState.gender, usedVoices, provider);
+  speakerState.voicesByProvider[provider] = voice;
+  console.log(`[pipeline] ${speakerState.label} 首次用 ${provider} 播报，分配音色：${voice}`);
+  return voice;
 }
 
 // 一段完整语音（16kHz 单声道 Float32）→ STT → 翻译 → TTS → 播放。
@@ -61,19 +81,36 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
   const elapsed = () => `${Date.now() - t0}ms`;
   const who = speakerState.label ?? userId;
 
-  assignSpeakerVoice(guildId, speakerState, monoFloat32);
+  detectSpeakerGender(speakerState, monoFloat32);
+
+  const session = getSession(guildId);
+  if (!session?.targetLang) {
+    // 目标语言从没设置过（没有默认值，见 session.js）——不翻译、不消耗 STT/翻译额度，
+    // 每次说话都直接播报固定提示，逼着用户先 /lang target:<语言> 一次。
+    console.log(`[pipeline] ${who} 目标语言未设置，跳过 STT/翻译，播报提示`);
+    await playTargetLangNotSetReminder(guildId, connection, userId, Date.now());
+    return;
+  }
 
   const stamp = Date.now();
   const segmentFile = await saveInputRecording(userId, stamp, monoFloat32, 16000);
   console.log(`[pipeline] ${who} [${elapsed()}] 音频已存盘，开始 STT`);
 
-  const session = getSession(guildId);
-  const sourceLang = session?.sourceLang;
-  const targetLang = session?.targetLang ?? DEFAULT_TARGET_LANG;
+  // 源语言没手动设置过（session.sourceLang 是假值）就交给 STT 自动检测——记下这次调用
+  // 之前是不是这个状态，STT 返回之后好判断这次是不是"第一句话，需要锁定检测结果"。
+  const wasSourceLangUnset = !session.sourceLang;
+  if (session.sourceLang) {
+    console.log(`[pipeline] ${who} 源语言：${session.sourceLang}`);
+  } else {
+    console.log(`[pipeline] ${who} 源语言尚未设置，本次调用 STT 自动检测`);
+  }
+
+  const targetLang = session.targetLang;
+  const provider = session.ttsProvider; // 跟 targetLang 一起在 setTargetLang 里联动设置，见 session.js
   let result;
   try {
     result = await transcribe(segmentFile, {
-      language: sourceLang,
+      language: session.sourceLang,
       prompt: speakerState.lastTranscript,
     });
   } finally {
@@ -82,6 +119,21 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
     await deleteRecording(segmentFile);
   }
   console.log(`[pipeline] ${who} [${elapsed()}] STT 返回`);
+
+  // 这次是自动检测、且真的检测出语种了——锁定进 session（跟 /lang source:<语言> 手动
+  // 设置效果一样，走同一个 setSourceLang，之后所有人共用这个源语言，不用每句话都重新
+  // 检测）。是 session 级别的锁定，不是按说话人各自锁定——跟 sourceLang/targetLang
+  // 本来就是整个 guild 共享一份设置这件事保持一致。
+  if (wasSourceLangUnset && result.language) {
+    setSourceLang(guildId, result.language);
+    console.log(`[pipeline] ${who} 自动检测到源语言：${result.language}，已锁定`);
+    session.voiceChannel
+      ?.send(
+        `🌐 Detected and set the source language to **${result.language}** based on the first thing said. Use \`/lang source:<language>\` to change it.`,
+      )
+      .catch((err) => console.error('[pipeline] 发送自动检测语言通知失败：', err));
+  }
+
   const transcriptText = result.text?.trim();
   if (!transcriptText) {
     console.log(`[pipeline] ${who} 说的这段没识别出文字，跳过`);
@@ -93,10 +145,9 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
   // 术语库检测：命中当前 /game 选定游戏的黑话就本地换成目标语言真实译词、用 <keep>
   // 包住，让 LLM 只管调整周围语法，标签内容不许动。Phase A 先不做翻译后校验，靠下面
   // 这条日志人工盯 LLM 有没有老实遵循标签指令（见 CLAUDE.md「游戏黑话/专有名词术语库」）。
-  const speakerLang = resolveSpeakerLang(sourceLang, speakerState, result);
   const { text: preparedText, hitCount } = applyTerminology(
     transcriptText,
-    speakerLang,
+    session.sourceLang,
     targetLang,
     session?.game,
   );
@@ -112,12 +163,22 @@ export async function handleSegment(guildId, connection, userId, monoFloat32, sp
   const translatedText = stripKeepTags(rawTranslatedText);
   console.log(`[pipeline] ${who} 译文(${targetLang}): "${translatedText}"`);
 
-  if (!TTS_SUPPORTED_LANGS.includes(targetLang) || !translatedText) {
+  if (!translatedText) {
+    console.log(`[pipeline] ${who} 翻译结果为空，跳过播放`);
+    return;
+  }
+  if (!provider) {
+    // 之前这里是纯静默 return——译文其实已经产出了，但因为这个目标语言不在
+    // TTS_PROVIDER_BY_LANG 里、没有对应供应商，播放这一步被跳过，日志上完全看不出
+    // 发生了什么，排查起来像是整条链路挂了。加一行日志，至少让人一眼看出"翻译成功了，
+    // 只是这个语言没法播报"，不是别的环节坏了。
+    console.log(`[pipeline] ${who} 目标语言 "${targetLang}" 没有对应的 TTS 供应商，只有译文没有语音播报`);
     return;
   }
 
-  const ttsWav = await synthesize(translatedText, { voice: TTS_VOICE_OVERRIDE ?? speakerState.voice, targetLang });
-  console.log(`[pipeline] ${who} [${elapsed()}] TTS 返回（音色：${TTS_VOICE_OVERRIDE ?? speakerState.voice}），进入播放队列`);
+  const voice = TTS_VOICE_OVERRIDE ?? resolveSpeakerVoice(guildId, speakerState, provider);
+  const ttsWav = await synthesize(translatedText, { voice, targetLang, provider });
+  console.log(`[pipeline] ${who} [${elapsed()}] TTS 返回（供应商：${provider}，音色：${voice}），进入播放队列`);
   await saveOutputRecording(userId, stamp, ttsWav);
 
   const pcm = ttsWavToDiscordPcm(ttsWav);

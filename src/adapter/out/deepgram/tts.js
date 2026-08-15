@@ -1,8 +1,9 @@
 import { postJsonForAudio } from './client.js';
 
 // 官方音色列表明确标了性别（不是我们猜的），来源：developers.deepgram.com/docs/tts-models
-// 只列了英文（-en）音色——Aura-2 也支持 es/de/fr/nl/it/ja，但那几种语言的具体音色名
-// 没查，需要的时候再补，目前先覆盖这个项目默认的英文输出场景。
+// 英文音色池最大（长期默认输出语言，多留几个方便区分不同说话人）；es/de/fr/ja 各自只接了
+// 一男一女，够用即可，等 ports/tts.js 的 TTS_PROVIDER_BY_LANG 真涨到需要更多变体再补。
+// nl/it 这两个 Aura-2 也支持，但 TTS_PROVIDER_BY_LANG 目前没路由到，先不接。
 export const VOICES_BY_GENDER = {
   female: [
     'aura-2-amalthea-en', 'aura-2-andromeda-en', 'aura-2-asteria-en', 'aura-2-athena-en',
@@ -12,19 +13,20 @@ export const VOICES_BY_GENDER = {
     'aura-2-luna-en', 'aura-2-minerva-en', 'aura-2-ophelia-en', 'aura-2-pandora-en',
     'aura-2-phoebe-en', 'aura-2-selene-en', 'aura-2-thalia-en', 'aura-2-theia-en',
     'aura-2-vesta-en',
+    'aura-2-celeste-es', 'aura-2-viktoria-de', 'aura-2-agathe-fr', 'aura-2-izanami-ja',
   ],
   male: [
     'aura-2-apollo-en', 'aura-2-arcas-en', 'aura-2-aries-en', 'aura-2-atlas-en',
     'aura-2-draco-en', 'aura-2-hermes-en', 'aura-2-hyperion-en', 'aura-2-jupiter-en',
     'aura-2-mars-en', 'aura-2-neptune-en', 'aura-2-odysseus-en', 'aura-2-orion-en',
     'aura-2-orpheus-en', 'aura-2-pluto-en', 'aura-2-saturn-en', 'aura-2-zeus-en',
+    'aura-2-nestor-es', 'aura-2-julius-de', 'aura-2-hector-fr', 'aura-2-fujin-ja',
   ],
 };
 
 export const VALID_VOICES = [...VOICES_BY_GENDER.male, ...VOICES_BY_GENDER.female];
 
-// 目前只验证过英文；Aura-2 实际还支持 es/de/fr/nl/it/ja，等真用到了再补对应音色名。
-export const TTS_SUPPORTED_LANGS = ['en'];
+export const TTS_SUPPORTED_LANGS = ['en', 'es', 'de', 'fr', 'ja'];
 
 // text: 待合成文本。voice: 上面列表里的一个 model 名。
 // 返回 wav Buffer，跟 groq/tts.js 的 synthesize() 返回形状一致——响应直接就是音频字节，

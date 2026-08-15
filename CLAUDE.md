@@ -24,10 +24,17 @@
 - Silero VAD:语音活动检测,**本地运行**,不联网,判断"一句话是否说完"
 
 ### 供应商可切换
-STT/翻译/TTS 三个环节各自通过端口(`src/application/ports/`)与具体供应商解耦,由 `STT_PROVIDER`/`TRANSLATE_PROVIDER`/`TTS_PROVIDER` 环境变量选择实现,换供应商不用改业务代码。当前:
+STT/翻译两个环节各自通过端口(`src/application/ports/`)与具体供应商解耦,由 `STT_PROVIDER`/`TRANSLATE_PROVIDER` 环境变量选择实现,换供应商不用改业务代码。当前:
 - STT:Deepgram(`nova-3`)
 - 翻译:Groq(`llama-3.1-8b-instant`),备用 DeepSeek
-- TTS:Deepgram(Aura-2 音色)
+
+**TTS 不是这个模式**——不是"进程启动时选一个供应商用到底",是**按目标语言动态路由到不同供应商**,因为没有一个供应商能覆盖这个项目要的全部目标语言:
+- 当前供应商:Deepgram(Aura-2,覆盖 en/fr/ja/de/es)+ Azure Speech(覆盖 zh/ko/pt/ar)
+- 路由表是 `src/application/ports/tts.js` 的 `TTS_PROVIDER_BY_LANG`(目标语言 → 供应商名),不是环境变量——不存在 `TTS_PROVIDER` 这个配置项。想调整某个语言用哪个供应商,改这张表,不是改 `.env`。没有做"这张表跟各供应商 adapter 自己声明的 `TTS_SUPPORTED_LANGS` 是否一致"这层启动期校验——`TTS_SUPPORTED_LANGS` 跟实际接的音色列表在同一个小文件里,改音色时顺手就会改这个数组,两者对不上的概率低,不值得加这层防御
+- `session.ttsProvider` 字段跟 `session.targetLang` 联动(`session.js` 的 `setTargetLang` 里一起设置),目标语言不在 `TTS_PROVIDER_BY_LANG` 里就是 `undefined`——`pipeline.js` 靠这个判断"这个目标语言没法出声音,只有译文文字",不是判断"当前唯一供应商的 `TTS_SUPPORTED_LANGS`"(那是单供应商时代的旧逻辑,已经不适用)
+- 中文用繁体音色(Deepgram STT 那边 zh→zh-TW 是同一个理由:项目排除中国大陆用户、以繁体中文使用者为主);阿拉伯语用沙特阿拉伯(ar-SA)音色,Azure 没有跟 STT 那边裸 `ar` 代码对应的"通用阿拉伯语"选项;葡萄牙语用巴西口音(pt-BR),全球使用人口远多于葡萄牙本土
+- 说话人的 TTS 音色现在按供应商分开存(`speakerState.voicesByProvider`,`provider -> voice`),不是单个 `.voice` 字段——不同供应商的音色命名空间完全不通用(Deepgram 是"aura-2-xxx-en"这种,Azure 是"zh-TW-XxxNeural"这种),目标语言变化导致供应商切换时会给新供应商单独分配一个音色,不保证跟旧供应商听感一致,这是多供应商架构没法避免的取舍
+- `/lang target:` 的可选语言列表从 `TTS_PROVIDER_BY_LANG` 的 key 动态生成(见 `lang.js`),不是手写的固定列表,加/删一个路由表条目,`/lang` 的选项自动跟着变
 
 ---
 
@@ -50,13 +57,13 @@ Deepgram Nova-3(STT,联网调用)
 Groq Llama 3.1 8B Instant(翻译,联网调用)
       │  → 译文
       ▼
-Deepgram Aura-2(语音合成,联网调用)
+Deepgram Aura-2 / Azure Speech(语音合成,按目标语言路由,联网调用)
       │
       ▼
 返回 Node.js 服务器 → 播放回 Discord 语音频道 / 或输出文字字幕
 ```
 
-**当前供应商组合:STT/TTS 用 Deepgram,翻译用 Groq(备用 DeepSeek)。** STT/TTS 最初也在 Groq(Whisper + Orpheus),后来切到 Deepgram(Nova-3 + Aura-2);翻译环节继续留在 Groq,理由不变:Llama 3.1 8B Instant 价格($0.05/$0.08 每百万 token)低,且 Groq 的 TTFT 在多份第三方评测中排名第一梯队。
+**当前供应商组合:STT 用 Deepgram,翻译用 Groq(备用 DeepSeek),TTS 按目标语言在 Deepgram/Azure 之间路由(见「供应商可切换」一节的 `TTS_PROVIDER_BY_LANG`)。** STT/TTS 最初也在 Groq(Whisper + Orpheus),后来切到 Deepgram(Nova-3 + Aura-2);翻译环节继续留在 Groq,理由不变:Llama 3.1 8B Instant 价格($0.05/$0.08 每百万 token)低,且 Groq 的 TTFT 在多份第三方评测中排名第一梯队。
 
 ---
 
@@ -66,10 +73,11 @@ Deepgram Aura-2(语音合成,联网调用)
 |---|---|---|---|
 | STT | Deepgram nova-3(Pre-Recorded) | 需在 console.deepgram.com 核实 | 项目用法是存好 wav 文件再转录,不是流式 |
 | 翻译 | Groq llama-3.1-8b-instant | $0.05/M输入,$0.08/M输出 | 通用小模型;`TRANSLATE_PROVIDER=deepseek` 可切到 DeepSeek 备用 |
-| TTS | Deepgram Aura-2 | 需在 console.deepgram.com 核实 | 项目目前只接了英文(`-en`)音色,见下方限制 |
+| TTS(en/fr/ja/de/es) | Deepgram Aura-2 | 需在 console.deepgram.com 核实 | `TTS_PROVIDER_BY_LANG` 路由到 deepgram 的语言 |
+| TTS(zh/ko/pt/ar) | Azure Speech(Neural 音色) | 需在 Azure Portal 核实 | `TTS_PROVIDER_BY_LANG` 路由到 azure 的语言,中文用繁体(zh-TW) |
 
-### 已知限制:TTS 目前只支持英语
-Deepgram Aura-2 官方还支持 es/de/fr/nl/it/ja 等语言的音色,但项目里(`src/adapter/out/deepgram/tts.js`)目前只验证并接入了英文音色,`TTS_SUPPORTED_LANGS` 只列了 `en`,不支持中文。中文语音播报需要额外引入本地方案(候选:Kokoro-82M,Apache 2.0 可商用,CPU/GPU 均可跑,中文支持较好),这块暂未接入。
+### 已解决:TTS 曾经只支持英语
+早期 Deepgram Aura-2 只接入了英文音色,中文/韩文/阿拉伯语没法出声音。后来给 en/fr/ja/de/es 五个语言在 `deepgram/tts.js` 补上了对应音色,并新接入 Azure Speech TTS 覆盖 zh/ko/pt/ar,具体路由见「供应商可切换」一节。
 
 ---
 
@@ -112,11 +120,24 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 已经用真实翻译 API(`TRANSLATE_PROVIDER=deepseek`)验证过指令遵循度:中/英/法互译测试(含法语阴阳性冠词这个关键考验场景)标签保留率和标签周围语法调整都符合预期。
 
 ### 术语检测用哪种语言扫描
-`session.sourceLang`/`session.targetLang` 现在有系统默认值(源=zh、目标=en,见 `session.js`),用 `/lang source:<语言> target:<语言>` 改(两个参数都可选,只传一个就只改那个,另一个不动;两个都不传就回显当前设置)。目前 `/lang` 的 `addChoices` 只列了 zh/en 两个选项,不再提供"自动检测"。
+`session.sourceLang`/`session.targetLang` **现在都没有默认值**(见 `session.js` 的 `createSession`)——`/join` 之后两个都是 `undefined`,行为不对称:
 
-`pipeline.js` 里 `resolveSpeakerLang` 还留着"用说话人第一段话的 STT 识别结果锁定语种"这条逻辑(跟 `assignSpeakerVoice` 首次开口判性别→分配音色是同一个模式),但因为 `sourceLang` 现在总有默认值,这条分支目前实际上不会被触发,是刻意保留的死代码——以后如果 `/lang` 想重新开放"自动检测"选项,这层逻辑不用重新写,把命令层的选项加回来接上就行。
+- **`targetLang`**:必须显式 `/lang target:<语言>` 设置一次才能开始翻译,没有任何兜底。`/join` 成功后的回复文字会明确提示这一点。设置之前,`pipeline.js` 的 `handleSegment` 检测到 `session.targetLang` 是假值,**跳过 STT/翻译**(不浪费 API 额度),改为直接合成播报一句固定的英文提示("I can't translate yet — please set a target language first using the lang command")——这条提示**固定走 `deepgram` + `en`**,不看 `session.ttsProvider`(这时候 `targetLang` 可能压根还没设置过,没有 provider 上下文可用),保证提示本身播得出来。这个提示**没有做节流/去重**,每次有人说话且 target 还没设置就会播一次,连续说话会连续触发——刻意先做最简单的版本,如果实测太吵再加节流。
+- **`sourceLang`**:`/lang source:<语言>` 手动设置优先;没手动设置的话,**第一句话会让 STT 自动检测**(`transcribe` 不传 `language` 参数,Deepgram 走 `detect_language=true`),检测结果通过 `setSourceLang` 写回 `session.sourceLang`——是 **session(guild)级别的锁定,不是按说话人各自锁定**,之后同一场会话所有人共用这个源语言,不会每句话都重新检测。锁定的同时会往 `session.voiceChannel`(bot 加入的那个语音频道自带的文字聊天)发一条通知,告知用户自动检测并设置成了什么语言。
 
-**注意**:`STT_PROVIDER=groq` 时 Whisper 返回的语种字段可能是英文全称(如 "english")而非 ISO 码,跟词典的语言 key 对不上,会导致术语检测静默失效(优雅降级——不报错,就是不生效)。当前实际配置的供应商是 Deepgram,已经处理好(显式传 `detect_language=true` 并提取 ISO 码),不受影响。
+两个都是刻意的产品决定,不是疏漏:早期版本两者都有默认值(源=zh、目标=en 或读 `.env` 的 `SOURCE_LANG`/`TRANSLATE_TARGET_LANG`),但这样会悄悄把语言定成一个用户可能压根没注意到、也不是他们想要的选项。现在改成"target 强制显式设置,source 退而求其次靠自动检测兜底"。
+
+**`pipeline.js` 往语音频道发文字消息的机制**:这是项目里第一次真正实现"bot 发文字消息"(之前只有 slash 命令的 `interaction.reply`,`pipeline.js` 完全没有对外通信能力)。做法是 `join.js` 把 `voiceChannel`(discord.js 的语音频道对象,同时也是合法的文字发送目标——Discord 的语音频道自带文字聊天)一路传给 `startListening` → `createSession`,存进 `session.voiceChannel`;`pipeline.js` 需要通知用户时直接 `session.voiceChannel?.send(...)`,失败了 `.catch()` 打日志、不让通知失败拖垮整个 pipeline。
+
+`/lang` 的 `source`/`target` 的**可选语言列表**(不是默认值,是 `/lang` 命令里能选哪些语言)本身是**两份不同的 `addChoices` 列表**,不对称,是 STT/TTS 依赖的能力不一样导致的:
+- `source`(源语言,只依赖 STT):zh/en/ko/ar 四个,Deepgram STT(Nova-3)这四种都支持,是手动挑的、不是 Nova-3 能力上限(Nova-3 实际支持 60+ 种语言,项目目前只用得上这四个)
+- `target`(目标语言,同时依赖 LLM 翻译和 TTS 播报):**现在覆盖 9 种**(zh/en/ko/ar/fr/ja/de/es/pt),从 `ports/tts.js` 的 `TTS_PROVIDER_BY_LANG` 的 key 动态生成(见 `lang.js`)——这是接入 Azure TTS(见上面"供应商可切换"那节)之后才做到的,早期只有 Deepgram 一个 TTS 供应商时,target 被迫只能开放 zh/en 两个(Deepgram Aura-2 当时只接了英文音色),选了别的语言翻译文字能正常生成但播报会被静默跳过。现在 target 选项数量直接绑定 `TTS_PROVIDER_BY_LANG` 有多少条,不会再出现"选项里能选、但其实播不出声音"这种不一致。
+
+**已知的语言无关性 bug 修复**:`terminology.js` 里判断"要不要给正则加 `\b` 词边界"的集合,原来叫 `CJK_LANGS`,只列了 zh/ja/ko——但真正的判断依据是"这门语言的文字在不在 JS 正则 `\w`(只认 ASCII 拉丁字母/数字/下划线)覆盖范围内",不是"是否空格分词"。阿拉伯语虽然是空格分词,但阿拉伯文字符同样不在 `\w` 里,加了 `\b` 一样会匹配不到——这两件事只是在中日韩身上恰好同时成立,不能当成通用判断标准。已改名 `NO_WORD_BOUNDARY_LANGS` 并加入 `'ar'`,以后再加不用 `\w` 覆盖的文字系统语言,照这个真正的判断依据加,不要照搬"是否空格分词"这条错误的心智模型。
+
+**历史备注(已解决,留着说明这段决策过程)**:上面提到的"target 只能开放 zh/en"这个限制后来通过接入 Azure Speech TTS 解决了(见"供应商可切换"一节)。项目里还留着切到 Deepgram 之前的旧 TTS adapter(`src/adapter/out/groq/tts.js`,Orpheus 模型,`TTS_SUPPORTED_LANGS = ['en', 'ar']`),但 `TTS_PROVIDER_BY_LANG` 现在没有任何语言路由到它,是没被使用的遗留代码,不是活跃供应商——真正接入并路由到 `ar`/`zh`/`ko`/`pt` 的是 Azure。
+
+**注意**:`STT_PROVIDER=groq` 时 Whisper 返回的语种字段可能是英文全称(如 "english")而非 ISO 码,跟词典的语言 key 对不上,会导致术语检测静默失效(优雅降级——不报错,就是不生效)。当前实际配置的供应商是 Deepgram,已经处理好(显式传 `detect_language=true` 并提取 ISO 码),不受影响——这一点现在也直接关系到 `sourceLang` 自动检测锁定这条新逻辑,`session.sourceLang` 写入的值就是这个 `detected_language`,如果哪天切回 Groq STT 又没处理好这个映射,自动检测锁定的值会是不对的英文全称。
 
 ### 游戏选择:`/game`(子命令列表,不是字符串选项)
 最初 POC 阶段"不做 `/game` 选择机制"这个决定后来改了——`/game` 的每个游戏是一个 `addSubcommand`(而不是一个带 `addChoices` 的字符串选项),打 `/game` 直接弹游戏名列表(`/game whiteout`),不需要先输一个选项名再选值(`/game game:whiteout`)。可选游戏列表维护在 `src/domain/games.js`,新增游戏在这里加一条、再建一个对应的 `src/domain/terminology/<game_id>.json` 词典文件就行;`games.js` 声明了某个 `game_id` 但对应词典文件不存在,`terminology.js` 启动时直接报错,不会静默运行。

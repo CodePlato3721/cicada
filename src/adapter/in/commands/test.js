@@ -4,29 +4,29 @@ import { playPcmInChannel } from '../../out/playback.js';
 
 export const data = new SlashCommandBuilder()
   .setName('test')
-  .setDescription('播放一段测试音效，用来单独验证"播放 PCM 到语音频道"这个环节本身是否正常');
+  .setDescription('Play a test sound to verify the "play PCM to voice channel" step works on its own');
 
 export async function execute(interaction) {
   const connection = getVoiceConnection(interaction.guildId);
 
   if (!connection) {
-    await interaction.reply({ content: '我还没加入语音频道，先 /join。', ephemeral: true });
+    await interaction.reply({ content: "I haven't joined a voice channel yet — use /join first.", ephemeral: true });
     return;
   }
 
-  await interaction.reply({ content: '播放测试音效（2 秒钟三个音符）……', ephemeral: true });
+  await interaction.reply({ content: 'Playing test sound (three notes, 2 seconds)...', ephemeral: true });
 
   const pcm = generateTestMelodyPcm();
 
   try {
     await playPcmInChannel(connection, pcm);
     await interaction.followUp({
-      content: '播放流程已走完（没报错）。如果你没听到声音，说明播放链路本身有问题，看控制台的 [playback] 日志。',
+      content: "Playback finished with no errors. If you didn't hear anything, the playback pipeline itself has an issue — check the [playback] console logs.",
       ephemeral: true,
     });
   } catch (err) {
     console.error('播放测试音效失败：', err);
-    await interaction.followUp({ content: '播放失败，详情看控制台日志。', ephemeral: true });
+    await interaction.followUp({ content: 'Playback failed. Check the console logs for details.', ephemeral: true });
   }
 }
 

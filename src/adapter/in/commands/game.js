@@ -8,7 +8,7 @@ import { setGame } from '../../../application/session.js';
 // 不算额外成本。
 export const data = new SlashCommandBuilder()
   .setName('game')
-  .setDescription('设置当前监听用的游戏，决定用哪套黑话词典');
+  .setDescription('Set the game currently being monitored, which determines which terminology dictionary to use');
 
 for (const game of GAMES) {
   data.addSubcommand((sub) => sub.setName(game.id).setDescription(game.name));
@@ -19,10 +19,10 @@ export async function execute(interaction) {
 
   const ok = setGame(interaction.guildId, gameId);
   if (!ok) {
-    await interaction.reply({ content: '我还没加入语音频道，先 /join。', ephemeral: true });
+    await interaction.reply({ content: "I haven't joined a voice channel yet — use /join first.", ephemeral: true });
     return;
   }
 
   const game = GAMES.find((g) => g.id === gameId);
-  await interaction.reply({ content: `当前游戏已设为：${game?.name ?? gameId}`, ephemeral: true });
+  await interaction.reply({ content: `Current game set to: ${game?.name ?? gameId}`, ephemeral: true });
 }

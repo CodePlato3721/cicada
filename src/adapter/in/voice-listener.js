@@ -17,13 +17,13 @@ import {
 // /leave 时能对称地 off() 掉。这是纯 adapter 细节，不属于业务状态，不放进 application/session.js。
 const guildListeners = new Map();
 
-export function startListening(connection) {
+export function startListening(connection, voiceChannel) {
   const guildId = connection.joinConfig.guildId;
 
   // 如果之前有残留状态（比如重复 /join），先清掉再重新开始。
   stopListening(guildId);
 
-  createSession(guildId, connection);
+  createSession(guildId, connection, voiceChannel);
 
   const onSpeakingStart = (userId) => {
     // 诊断用：Discord 检测到这个人开始说话的时刻，跟 VAD 确认"这是人声"的时刻对比，

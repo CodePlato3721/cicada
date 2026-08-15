@@ -4,13 +4,13 @@ import { startListening } from '../voice-listener.js';
 
 export const data = new SlashCommandBuilder()
   .setName('join')
-  .setDescription('加入你当前所在的语音频道，并自动开始实时监听+翻译（不用再 /record）');
+  .setDescription('Join your current voice channel and start real-time listening + translation');
 
 export async function execute(interaction) {
   const voiceChannel = interaction.member?.voice?.channel;
 
   if (!voiceChannel) {
-    await interaction.reply({ content: '你需要先加入一个语音频道，我才能跟过去。', ephemeral: true });
+    await interaction.reply({ content: "You need to join a voice channel first so I can follow you in.", ephemeral: true });
     return;
   }
 
@@ -25,12 +25,15 @@ export async function execute(interaction) {
     });
 
     await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
-    startListening(connection);
+    startListening(connection, voiceChannel);
     await interaction.editReply(
-      `已加入语音频道：${voiceChannel.name}，开始自动监听——频道里任何人说话都会被实时切句、翻译、念出来。/leave 退出。`,
+      `Joined voice channel: ${voiceChannel.name}. Now listening automatically. ` +
+        'Before I can translate anything, you must set a target language with `/lang target:<The language you want Cicada to speak>` — ' +
+        "until you do, I'll just remind you to set it instead of translating. " +
+        "Source language is optional — if you don't set it with `/lang source:<language>`, I'll auto-detect it from the first thing said and lock it in (I'll post a message here once that happens). Use /leave to stop.",
     );
   } catch (err) {
     console.error('加入语音频道失败：', err);
-    await interaction.editReply('加入语音频道失败，详情看控制台日志。');
+    await interaction.editReply('Failed to join the voice channel. Check the console logs for details.');
   }
 }
