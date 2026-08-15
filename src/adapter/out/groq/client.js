@@ -14,7 +14,7 @@ export function getGroqClient() {
     }
     client = new Groq({
       apiKey: config.groqApiKey,
-      timeout: Number(process.env.API_TIMEOUT_MS ?? 15000),
+      timeout: Number(process.env.API_TIMEOUT_MS ?? 5000),
       maxRetries: 1,
     });
   }

@@ -11,6 +11,7 @@ import {
   getSpeaker,
   hasSpeaker,
   listSpeakers,
+  nextPlaybackSequence,
 } from '../../application/session.js';
 
 // guildId -> { onSpeakingStart, onSpeakingEnd }：Discord 事件监听器的引用，只用于
@@ -89,7 +90,12 @@ async function createSpeakerPipeline(guildId, connection, userId) {
   const handleDetectedSegment = (segment) => {
     const durationSec = (segment.length / 16000).toFixed(2);
     console.log(`[listener] ${userId} ${new Date().toLocaleTimeString()} VAD 判定一句话结束，音频时长 ${durationSec}s`);
-    handleSegment(guildId, connection, userId, segment, speakerState).catch((err) => {
+    // 播放顺序号必须在这里、同步分配——这一刻就是"这句话真正说完"的时刻，代表它在
+    // 整场会话里的实际先后顺序。不能等 handleSegment 异步处理完再分配，那样分配到的
+    // 是"处理完的顺序"，STT/翻译并发跑、处理快慢不一，起不到重排的作用（见
+    // playback-queue.js 顶部注释）。
+    const sequence = nextPlaybackSequence(guildId);
+    handleSegment(guildId, connection, userId, segment, speakerState, sequence).catch((err) => {
       console.error(`[listener] 处理 ${userId} 的一段语音失败：`, err);
     });
   };

@@ -17,6 +17,13 @@ export function createSession(guildId, connection, voiceChannel) {
     voiceChannel,
     speakers: new Map(),
     speakerSeq: 0,
+    // 播放顺序用的序号——每个人说的每一句话，在 VAD 判定"这句说完了"的那一刻（不是
+    // "处理完了"的那一刻）按这个计数器分配一个严格递增的号码，代表真实的说话先后顺序。
+    // STT/翻译是并发跑的，处理快的句子可能比处理慢的句子先返回，播放队列
+    // （adapter/out/playback-queue.js）靠这个号码重排，不是按"谁先处理完就先播谁"。
+    // 从 0 开始，playback-queue.js 那边的 nextSequence 也约定从 0 开始，两边靠这个
+    // 约定对齐，不是这里能校验的。
+    playbackSeq: 0,
     // sourceLang/targetLang 都故意不给默认值——不设置的话是 undefined。
     // targetLang：pipeline.js 的 handleSegment 检测到是假值就直接跳过翻译，播报一条
     //   提示让用户先 /lang target:<语言>。
@@ -88,6 +95,22 @@ export function setGame(guildId, gameId) {
   return true;
 }
 
+// /reset 用——把 source/target 语言、TTS 供应商、游戏选择都恢复成刚 /join 时的初始
+// 状态（照抄 createSession 里的初始值，两处保持一致）。只清"设置"这一类字段，
+// 不动 connection/voiceChannel/speakers——已经在监听的人、已经分配好的性别/音色
+// 这些运行期状态不受影响，重新说话时会用回各自现有的音色，不会重新判性别。
+export function resetSessionSettings(guildId) {
+  const session = sessions.get(guildId);
+  if (!session) return false;
+
+  session.sourceLang = undefined;
+  session.targetLang = undefined;
+  session.ttsProvider = undefined;
+  session.game = GAMES[0]?.id;
+  console.log(`[session] guild ${guildId} 设置已重置（源/目标语言、TTS 供应商、游戏选择恢复初始状态）`);
+  return true;
+}
+
 // 除了登记进 speakers Map，顺带给这个人分配一个"发言人N"标签——按这场会话里
 // 第几个开口的人编号，纯粹为了日志和音色分配时可读，不代表任何持久身份，
 // 每次 /join 重新开始都会从 1 重新编。
@@ -98,6 +121,18 @@ export function addSpeaker(guildId, userId, speakerState) {
   session.speakerSeq += 1;
   speakerState.label = `发言人${session.speakerSeq}`;
   session.speakers.set(userId, speakerState);
+}
+
+// 分配下一个播放顺序号——必须在 voice-listener.js 里 VAD 刚判定"这句话说完了"的那一刻
+// 同步调用（不能等 handleSegment 异步处理完再分配，那样分配到的顺序就是"处理完的顺序"
+// 而不是"说话的顺序"，起不到重排的作用）。guild 不存在（还没 /join）返回 null。
+export function nextPlaybackSequence(guildId) {
+  const session = sessions.get(guildId);
+  if (!session) return null;
+
+  const sequence = session.playbackSeq;
+  session.playbackSeq += 1;
+  return sequence;
 }
 
 export function getSpeaker(guildId, userId) {

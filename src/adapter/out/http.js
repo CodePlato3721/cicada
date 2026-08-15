@@ -4,7 +4,7 @@
 // 背景：实测踩过坑——DeepSeek 有一次单次请求卡了 34 秒才返回，期间这句话的整条流水线
 // 悄悄挂在后台，用户完全感知不到，等它终于返回时会跟后面已经处理完的句子一起爆发式播出来，
 // 体验上像是"卡了很久突然冒出好几句话"。没有超时的话，慢请求会无限拖着不失败、不重试。
-const TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS ?? 15000);
+const TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS ?? 5000);
 
 export async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
