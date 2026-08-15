@@ -9,14 +9,18 @@ import { monoFloat32ToInt16Buffer } from '../../domain/pcm.js';
 // （内部用 createReadStream 读取），所以这次落盘是主链路里必须的一步；
 // 输出（TTS 结果）这份纯粹是调试留痕，方便回放排查翻译/合成效果，不影响播放本身。
 //
-// 默认两份都留（跟原来行为一致，方便调试），但 recordings/ 会按 RECORDINGS_RETENTION_HOURS
+// 默认两份都留（跟原来行为一致，方便调试），但 RECORDINGS_DIR 会按 RECORDINGS_RETENTION_HOURS
 // 自动清理旧文件，不会无限增长。不想攒盘就设 SAVE_RECORDINGS=false：这时输入录音只临时写到
 // 系统 temp 目录、喂完 STT 立刻删（主链路照常工作），输出录音直接跳过不写。
-const RECORDINGS_DIR = 'recordings';
+const RECORDINGS_DIR = process.env.RECORDINGS_DIR;
 const SAVE_RECORDINGS = process.env.SAVE_RECORDINGS !== 'false';
 const RETENTION_HOURS = Number(process.env.RECORDINGS_RETENTION_HOURS ?? 24);
 // 清理只在写入时顺手做，加个节流，不用每句话都扫一遍目录。
 const PRUNE_INTERVAL_MS = 5 * 60_000;
+
+if (SAVE_RECORDINGS && !RECORDINGS_DIR) {
+  throw new Error('环境变量 RECORDINGS_DIR 未设置，请在 .env 里配置调试录音保存目录');
+}
 
 async function ensureDir() {
   await mkdir(RECORDINGS_DIR, { recursive: true });
@@ -46,7 +50,7 @@ export async function saveInputRecording(userId, stamp, monoFloat32, sampleRate)
 
   await ensureDir();
   pruneOldRecordings().catch((err) => console.error('[recordings] 清理旧录音失败：', err));
-  const filename = `${RECORDINGS_DIR}/${userId}-${stamp}.wav`;
+  const filename = join(RECORDINGS_DIR, `${userId}-${stamp}.wav`);
   await writeMonoWav(filename, monoFloat32, sampleRate);
   return filename;
 }
@@ -61,7 +65,7 @@ export async function deleteRecording(filePath) {
 export async function saveOutputRecording(userId, stamp, wavBuffer) {
   if (!SAVE_RECORDINGS) return; // 纯调试用途，不保留就跳过，不占盘
   await ensureDir();
-  await writeFile(`${RECORDINGS_DIR}/${userId}-${stamp}-tts.wav`, wavBuffer);
+  await writeFile(join(RECORDINGS_DIR, `${userId}-${stamp}-tts.wav`), wavBuffer);
 }
 
 let lastPruneAt = 0;
