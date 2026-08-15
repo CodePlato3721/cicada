@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-专注游戏领域的实时语音翻译 App,核心场景是 Discord 语音频道里的跨语言玩家组队/开黑沟通。核心链路:`/join` 后自动监听频道内所有人的语音,本地 Silero VAD 实时切句 → Deepgram STT → Groq Llama 翻译 → Deepgram TTS 播回频道;`/leave` 停止监听并退出。
+专注游戏领域的实时语音翻译 App,核心场景是 Discord 语音频道里的跨语言玩家组队/开黑沟通。核心链路:`/join` 后自动监听频道内所有人的语音,本地 Silero VAD 实时切句 → Deepgram STT → LLM 翻译(Groq/DeepSeek,见「供应商可切换」)→ TTS 按目标语言路由到 Deepgram 或 Azure Speech 播回频道;`/leave` 停止监听并退出。
 
 实时翻译:一句话被 VAD 切出来就立即进入翻译流程,同时继续采集下一句,不等整段结束再处理(采集与翻译并行;语音播放本身仍需排队串行,避免多句声音在频道里叠在一起)。
 
@@ -63,7 +63,7 @@ Deepgram Aura-2 / Azure Speech(语音合成,按目标语言路由,联网调用)
 返回 Node.js 服务器 → 播放回 Discord 语音频道 / 或输出文字字幕
 ```
 
-**当前供应商组合:STT 用 Deepgram,翻译用 Groq(备用 DeepSeek),TTS 按目标语言在 Deepgram/Azure 之间路由(见「供应商可切换」一节的 `TTS_PROVIDER_BY_LANG`)。** STT/TTS 最初也在 Groq(Whisper + Orpheus),后来切到 Deepgram(Nova-3 + Aura-2);翻译环节继续留在 Groq,理由不变:Llama 3.1 8B Instant 价格($0.05/$0.08 每百万 token)低,且 Groq 的 TTFT 在多份第三方评测中排名第一梯队。
+**当前供应商组合:STT 用 Deepgram,翻译设计上默认 Groq、备用 DeepSeek,TTS 按目标语言在 Deepgram/Azure 之间路由(见「供应商可切换」一节的 `TTS_PROVIDER_BY_LANG`)。** STT/TTS 最初也在 Groq(Whisper + Orpheus),后来切到 Deepgram(Nova-3 + Aura-2);翻译环节设计上留在 Groq,理由不变:Llama 3.1 8B Instant 价格($0.05/$0.08 每百万 token)低,且 Groq 的 TTFT 在多份第三方评测中排名第一梯队。**但 `.env` 里 `TRANSLATE_PROVIDER` 当前实际配置的是 `deepseek`**(不是 Groq)——开发过程中发现 Groq 免费额度的 RPM/TPM 限制(见下一节)在多人/多句并发场景下容易触顶,临时切到 DeepSeek 更稳定;`TRANSLATE_PROVIDER=groq` 仍然是完整实现、随时能切回去,只是当前实际跑的不是它,排查线上问题时不要想当然认为翻译走的是 Groq,以 `.env` 里的值和启动日志(`[ports/translate] 翻译供应商：...`)为准。
 
 ---
 
@@ -90,6 +90,19 @@ Deepgram Aura-2 / Azure Speech(语音合成,按目标语言路由,联网调用)
 超出免费额度可绑定信用卡升级 Developer tier,不产生额外费用直到实际用量超出,且解锁更高限额 + 约25%折扣。
 
 STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 核实,不再适用上面 Groq 的限制。
+
+---
+
+## 网络请求超时保护(`API_TIMEOUT_MS`)
+
+### 问题
+实测踩过坑:DeepSeek 有一次单次请求卡了 34 秒才返回,期间这句话的整条流水线悄悄挂在后台,用户完全感知不到,等它终于返回时会跟后面已经处理完的句子一起爆发式播出来。原生 `fetch` 不带超时,慢请求会无限拖着不失败、不重试。
+
+### 方案
+- `src/adapter/out/http.js` 的 `fetchWithTimeout` 给所有手写 `fetch` 调用(Deepgram STT+TTS、Azure TTS、DeepSeek 翻译)统一包一层 `AbortController`,超过 `API_TIMEOUT_MS`(默认 **5000**,2026-08-14 从 15000 下调)没响应就直接 abort 抛错,**不重试**
+- Groq 走官方 SDK,不经过 `fetchWithTimeout`,而是在 `groq/client.js` 里显式配置 `timeout: API_TIMEOUT_MS`(同一个环境变量,保持跟其他供应商同一个量级)、`maxRetries: 1`(SDK 默认是 1 分钟超时 + 重试 2 次,对实时语音链路太宽松,降到"超时更短、只重试一次",最坏情况也只是当前超时值的 2 倍,不会拖出离谱的等待)
+- 这个超时只保护"单次网络请求"不无限挂起,不代表 `handleSegment` 整个函数有个总的超时上限——一句话要经过 STT/翻译/TTS 三次独立请求,每次各自最多等 `API_TIMEOUT_MS`(Groq 场景下翻译这一步最多 2 倍),叠加起来才是这句话失败前最坏能拖多久
+- 调这个值是全局的(影响 STT/翻译/TTS 三个环节的所有供应商),不是分环节各自配置
 
 ---
 
@@ -188,3 +201,33 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 ## 目标用户与语言范围
 
 面向全球用户(除中国大陆地区,因 Discord 在该地区不可用)。产品最终形态希望支持"每个用户各自选择目标语言,收听对应翻译"这种个性化体验,但这在 Discord 原生语音频道架构下无法直接实现(bot 只能向整个频道播放一路音频),需要 companion app 才能做到。
+
+---
+
+## 部署环境与当前进度(截至 2026-08-14)
+
+### 生产服务器规格——很小,是排查性能问题时的关键背景
+DigitalOcean 最小档 Droplet:**1 vCPU / 1GB 内存 / 2GB swap**(主机名 `ubuntu-s-1vcpu-1gb-nyc2`),`pm2` 管理进程(`pm2 logs cicada`/`pm2 monit`/`pm2 describe cicada`)。这台机器目前只是开发/测试用途,不代表将来上量后的生产规格——排查"是不是并发/资源撑不住"这类问题时,结论要限定在"这台机器上"成立,不能直接套用到"将来几百上千个 guild 会不会也这样"(那是完全不同量级的横向扩展问题,不是这台单机能不能扛的问题)。
+
+### 已确认但还没修的架构缺口:没有并发上限
+`pipeline.js` 的 `handleSegment` 是"发射后不管"并发跑的(见「播放顺序保证」一节),**目前没有任何并发限流**(没有 semaphore/p-limit 之类的东西)。VAD 把一个人连续说的好几句话切成多个 segment 时,每个 segment 都会同时发起独立的 STT/翻译/TTS 请求。在上面这台 1vCPU/1GB 的小机器上,实测出现过单句处理时间被拖到 **200~400 秒**量级(正常应该是几秒)的情况——怀疑是内存/CPU 争抢导致(见下面的实测证据),不是外部供应商限流(已排除:那次实际配置的翻译供应商是 DeepSeek,不是有 30 RPM 免费额度限制的 Groq,五到二十个并发请求撞不到 DeepSeek 这种通用 API 的限流)。**这个并发上限目前是刻意还没加的**——本次排查过程中用户明确要求"先别改代码,只分析 root cause",还没进入实施阶段,下一步可以做的方向:给 `handleSegment` 的并发数量加个上限(比如 p-limit),或者至少给单个说话人的连续 segment 加个节流。
+
+### 2026-08-13/14 实测证据(一次真实的用户测试 session,供下次排查参考)
+- 服务器 `dmesg` 里能查到一次真实的 OOM(内存耗尽)内核强杀事件:`[Thu Aug 13 18:11:05 2026] Out of memory: Killed process 8894 (MainThread) ... anon-rss:552816kB`。**注意:还没确认这个被杀的 `MainThread` 进程就是 cicada**(进程名不像典型的 Node 进程名,更像 Python 的默认主线程名;而且这个时间点跟下面那次卡顿事故的时间对不上,是两码事)——下次排查可以拿这个时间戳去 `grep "2026-08-13T18:1" /root/.pm2/pm2.log` 或 `journalctl --since "2026-08-13 18:08:00" --until "2026-08-13 18:14:00"` 找有没有 cicada 意外退出/重启的记录来实锤
+- 同一次测试里还发现一个**独立的、真实存在的播放 bug**(不是上面并发问题的直接后果,是它的连锁反应):某句话处理了 396302ms(约 6.6 分钟)才终于 TTS 合成完,轮到播放时日志显示 `[playback] connection.subscribe 结果: 失败（返回了 undefined）`,播放器立刻进入 `autopaused` 状态——怀疑是处理耗时太久期间 Discord 语音连接的心跳被延误、连接已经不是 Ready 状态,`connection.subscribe()` 在这种情况下会返回 `undefined`(`@discordjs/voice` 的既有行为)。这个 bug**还没修**,目前没有针对"连接可能已经失效"做检测或重连;根源还是上面那条"没有并发上限导致单句处理时间失控"——先把并发限流加上,这个连锁反应大概率会自然消失,但即便如此,"连接失效时应该怎么处理"这个问题本身也值得单独看一下(比如播放前检查 `connection.state.status`,不是 Ready 就跳过或触发重连)
+- 同一次测试里还有一批句子翻译成功(`译文(zh): "..."` 有打印)但完全没有对应的 `-tts.wav` 文件、日志里也没看到后续任何输出——**原因还没确认**,怀疑是命中了 `!provider` 静默 return 分支(比如当时部署在服务器上的代码版本比本地仓库旧,可能还没接入 Azure TTS、`zh` 还没路由到任何供应商),也可能是 `synthesize()` 抛错但错误日志没贴全。下次排查先确认服务器上部署的代码版本(`git log -1` 或直接比对文件内容)是不是已经包含 Azure TTS 路由
+
+### 今天(2026-08-14)完成并已推送到 `origin/main` 的修复,但还没部署到服务器
+以下 5 个 commit 已经推到 `main`,但上面这次测试用的服务器代码是这些修复**之前**的旧版本(那台服务器还没重新拉取/重启),上面记录的所有实测证据都是旧代码的行为,不代表这些问题在新代码里依然存在:
+1. TTS 音色语言错配 bug 修复 + Azure Speech 接入
+2. 语言系统重设计(target 强制显式设置、source 自动检测+白名单锁定)+ `/reset` 命令
+3. `/join` 自动放测试音效 + 回复拆成两条消息
+4. **播放顺序保证**(sequence 号 + 播放队列重排,见「播放顺序保证」一节)+ `API_TIMEOUT_MS` 默认从 15000 降到 5000
+5. 文档同步
+
+**下一步(还没做,留给下次继续)**:
+- 把最新代码部署到服务器(`git pull` + `pm2 restart cicada`,或者用户平时的部署流程)
+- 部署后重新用同样的"连续说好几句话"场景复测,确认 `API_TIMEOUT_MS=5000` + 播放顺序修复之后,单句处理时间和播放顺序是否恢复正常
+- 视复测结果决定要不要实施并发上限(如果新代码 + 更短超时之后问题基本消失,可能暂时不急;如果多人同时说话还是会顶到瓶颈,再加限流)
+- 确认那次 OOM 事件里被杀的 `MainThread` 进程到底是不是 cicada(见上面「实测证据」的排查命令)
+- 排查"翻译成功但 TTS 完全没生成"这批句子的具体原因(确认服务器部署的代码版本、检查完整日志里有没有被截断的错误信息)
