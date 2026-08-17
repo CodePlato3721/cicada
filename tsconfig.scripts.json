@@ -1,0 +1,19 @@
+{
+  // 一次性 CLI 脚本（scripts/*.js 抓取/合并术语库工具）单独一份 tsconfig，不跟主
+  // tsconfig.json 共用——主配置 rootDir 锁定在 "src"，scripts/ 在 src/ 之外，两者的
+  // 编译产物不能塞进同一棵 rootDir 子树。继承主配置的 strict/target/module 等通用
+  // 编译选项，只覆盖 rootDir/outDir/include/exclude 这几项跟目录布局相关的设置。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "scripts",
+    "outDir": "dist/scripts",
+    // 主 tsconfig.json 里没显式写 "types"，靠 tsc 默认自动扫 node_modules/@types 全部
+    // 引入（main config 下这样确实生效）。但这份子配置通过 "extends" 继承时，同样
+    // 不显式声明反而扫不到 @types/node（实测复现：process/console/fetch 等全局类型
+    // 报"找不到"，加上这一行就好），原因未深究，显式声明更稳，不依赖这个不一致的
+    // 自动推断行为。
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*"],
+  "exclude": ["node_modules", "dist", "scripts/drafts"]
+}

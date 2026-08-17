@@ -16,6 +16,8 @@ jobs:
           cd /opt/cicada
           git fetch origin main
           git reset --hard origin/main
-          npm ci --omit=dev
+          npm ci
+          npm run build
+          npm prune --omit=dev
           pm2 restart cicada
           pm2 save

@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+
+    // 迁移是分任务逐层推进的（见 plato-workspace/tickets/CCD-1/tasks.json），这次只转
+    // domain 层，application/adapter/scripts 这些还没转的 .js 文件要继续留在编译产物里
+    // 才能跑起来——allowJs 让 tsc 把它们原样纳入编译一起输出到 dist/，checkJs 关掉是因为
+    // 这些文件还没补类型标注，开着会被当前这轮任务范围外的文件淹没报错；后续任务把某一层
+    // 转完之后，同一层的文件就已经是 .ts、自动被 strict 类型检查覆盖，不需要额外开关。
+    "allowJs": true,
+    "checkJs": false,
+
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": false,
+    "noEmitOnError": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

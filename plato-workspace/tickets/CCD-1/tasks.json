@@ -1,0 +1,46 @@
+{
+    "tasks": [
+        {
+            "id": "TASK-01",
+            "description": "在 tests/e2e 下建立冒烟测试：不连接真实 Discord 服务器、不走语音接收/VAD 切句，直接从已有音频文件切入，驱动 STT → 翻译 → TTS 这条核心链路（调用真实外部 API，不 mock），断言只到\"最终生成出了一个 .wav 文件\"这一层。此测试基于当前 JS 代码库跑通，作为迁移前后行为不回归的基准。",
+            "tech-stack": "test",
+            "business-domain": "e2e-smoke-test"
+        },
+        {
+            "id": "TASK-02",
+            "description": "搭建 TypeScript 构建工具链并改写 domain 层：新增 tsconfig.json、typescript 及必要的 @types 依赖，package.json 的 start/相关脚本改为先用 tsc 编译到 dist/、再用 node 运行编译产物（不引入 ts-node/tsx）；随后把 games.js、pcm.js、pitch.js、silero.js、streaming-vad.js、terminology.js、test-tone.js、wav.js、translation-prompt.js 全部转为 .ts 并补齐类型标注，作为验证工具链可用的第一批产物（terminology/whiteout.json 数据文件保持不变，不转）。",
+            "tech-stack": "domain",
+            "business-domain": "core-pipeline"
+        },
+        {
+            "id": "TASK-03",
+            "description": "application 层改写为 TypeScript：pipeline.js、session.js、voice-assignment.js、ports/stt.js、ports/translate.js、ports/tts.js 全部转为 .ts，端口（port）接口定义类型化，供各 adapter 实现方引用。",
+            "tech-stack": "application",
+            "business-domain": "core-pipeline"
+        },
+        {
+            "id": "TASK-04",
+            "description": "adapter/out 层改写为 TypeScript：azure/client.js、azure/tts.js、deepgram/client.js、deepgram/stt.js、deepgram/tts.js、deepseek/client.js、deepseek/translate.js、groq/client.js、groq/stt.js、groq/translate.js、groq/tts.js，以及 http.js、logger.js、playback.js、playback-queue.js、recordings.js 全部转为 .ts，实现 TASK-03 中定义的端口类型。",
+            "tech-stack": "adapter-out",
+            "business-domain": "core-pipeline"
+        },
+        {
+            "id": "TASK-05",
+            "description": "adapter/in 与入口层改写为 TypeScript：commands 目录下 game.js/join.js/lang.js/leave.js/reset.js/test.js、voice-listener.js、config.js、src/index.js 全部转为 .ts。",
+            "tech-stack": "adapter-in",
+            "business-domain": "discord-integration"
+        },
+        {
+            "id": "TASK-06",
+            "description": "一次性 CLI 脚本改写为 TypeScript：scripts/lib/wiki-scraper.js、scripts/merge-lang.js、scripts/merge-terms.js、scripts/scrape-lang.js、scripts/scrape-terms.js、scripts/wiki-sources.js，以及 src/deploy-commands.js 全部转为 .ts。",
+            "tech-stack": "scripts",
+            "business-domain": "tooling-scripts"
+        },
+        {
+            "id": "TASK-07",
+            "description": "收尾验收：确认 pm2 托管进程改为运行 tsc 编译产物（dist/ 下的 .js），而不是直接跑 .ts 或用 ts-node/tsx；清理迁移完成后残留的旧 .js 源文件；跑通 TASK-01 建立的 tests/e2e 冒烟测试，确认改写没有破坏核心链路的可运行性。",
+            "tech-stack": "release",
+            "business-domain": "release-verification"
+        }
+    ]
+}
