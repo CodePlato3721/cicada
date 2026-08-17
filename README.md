@@ -50,6 +50,7 @@ ssh <用户名>@<droplet IP>
 cd /path/to/cicada
 git pull origin main
 npm install
+npm run build   # 项目是 TypeScript,pm2 托管的是 dist/ 下的编译产物,重启前必须先编译
 pm2 restart cicada   # 具体进程名/id 用 pm2 list 查
 pm2 logs cicada --lines 50   # 确认启动正常
 ```

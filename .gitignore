@@ -3,3 +3,6 @@ node_modules/
 *.log
 recordings/
 scripts/drafts/
+tests/e2e/output/
+dist/
+.plato/
