@@ -3,6 +3,7 @@ import type { VoiceBasedChannel } from 'discord.js';
 import prism from 'prism-media';
 import type { opus } from 'prism-media';
 import { StreamingVad } from '../../domain/streaming-vad.js';
+import { getKeyterms } from '../../domain/keyterms.js';
 import { clearPlaybackQueue } from '../out/playback-queue.js';
 import { saveInputRecording } from '../out/recordings.js';
 import { handleSegment } from '../../application/pipeline.js';
@@ -188,7 +189,17 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
             onSpeechStart: () => {
               logger.info({ userId }, `${userId} VAD confirmed this is speech, starting to count a sentence`);
               if (!sttStream) {
-                sttStream = openStream({ language: getSession(guildId)?.sourceLang, prompt: speakerState.lastTranscript });
+                const session = getSession(guildId);
+                sttStream = openStream({
+                  language: session?.sourceLang,
+                  prompt: speakerState.lastTranscript,
+                  // keyterm 是开连接时的 query 参数，连上之后不能中途改（这个项目用的
+                  // 是 Deepgram nova-3 标准流式接口，没有连接期间动态更新关键词的能力，
+                  // 那是更新的 Flux 模型才有的 Configure 消息机制）。源语言还没锁定
+                  // （第一句话，自动检测中）或者锁定的不是中文，都不附带关键词——
+                  // getKeyterms 在 gameId 缺失时也会返回空数组，不需要额外判空。
+                  keyterms: session?.sourceLang === 'zh' ? getKeyterms(session.game) : undefined,
+                });
               }
             },
           });

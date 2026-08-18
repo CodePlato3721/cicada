@@ -2,7 +2,9 @@ import type { VoiceConnection } from '@discordjs/voice';
 import { ttsWavToDiscordPcm } from '../domain/wav.js';
 import { estimateGender } from '../domain/pitch.js';
 import { applyTerminology, stripKeepTags } from '../domain/terminology.js';
+import { lookupTranslationCache } from './translate-cache-lookup.js';
 import { saveOutputRecording } from '../adapter/out/recordings.js';
+import { setCachedTranslation } from '../adapter/out/redis/translate-cache.js';
 import { SUPPORTED_SOURCE_LANGS, type TranscribeResult } from './ports/stt.js';
 import { translate } from './ports/translate.js';
 import { synthesize } from './ports/tts.js';
@@ -223,26 +225,70 @@ export async function handleSegment(
     logger.info({ ...ctx, who, transcript: transcriptText }, `${who} transcript: "${transcriptText}"`);
     speakerState.lastTranscript = transcriptText;
 
-    // 术语库检测：命中当前 /game 选定游戏的黑话就本地换成目标语言真实译词、用 <keep>
-    // 包住，让 LLM 只管调整周围语法，标签内容不许动。Phase A 先不做翻译后校验，靠下面
-    // 这条日志人工盯 LLM 有没有老实遵循标签指令（见 CLAUDE.md「游戏黑话/专有名词术语库」）。
-    const { text: preparedText, hitCount } = applyTerminology(
-      transcriptText,
-      session.sourceLang,
+    // 翻译缓存：具体"哪些源语言接入了缓存、怎么规范化"完全是 translate-cache-lookup.js
+    // 的内部细节（目前只有中文，见 DESIGN.md「Scope」）——这里只认它返回的四种结果，
+    // 以后加别的语言的缓存支持，改那个文件就够了，不用碰这里。
+    const cacheLookup = await lookupTranslationCache({
+      sourceLang: session.sourceLang,
       targetLang,
-      session?.game,
-    );
-    if (hitCount > 0) {
-      logger.info({ ...ctx, who, hitCount, preparedText }, `${who} matched ${hitCount} term(s), sending to translation after preprocessing: "${preparedText}"`);
+      gameId: session.game,
+      transcriptText,
+    });
+
+    if (cacheLookup.kind === 'empty-after-normalize') {
+      // 规范化完之后是空字符串，代表这句话是纯语气词/噪音——不翻译，没有输出，
+      // 也不会走到下面写缓存那一步，见 DESIGN.md。
+      logger.info({ ...ctx, who }, `${who} normalized to empty (pure filler words), skipping translate/playback`);
+      return;
     }
 
-    const rawTranslatedText = await translate(preparedText, targetLang);
-    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] translation returned`);
-    if (hitCount > 0) {
-      logger.info({ ...ctx, who, rawTranslatedText }, `${who} raw translation output (for verification, includes <keep> tags): "${rawTranslatedText}"`);
+    // not-applicable：这个源语言没接入缓存，textForTranslation 就是原始转写文本，
+    // 跟改动前的行为完全一致。miss：用规范化后的文本继续走翻译，保证"缓存里存的译文"
+    // 对应的就是"重新翻译会送进 LLM 的那份文本"，不会出现 key 用规范化文本、翻译却用
+    // 原文这种不一致。
+    let textForTranslation = transcriptText;
+    let cacheKey: string | undefined;
+    let translatedText: string | undefined;
+
+    if (cacheLookup.kind === 'hit') {
+      cacheKey = cacheLookup.cacheKey;
+      translatedText = cacheLookup.translatedText;
+      logger.info({ ...ctx, who, cacheKey }, `${who} translation cache hit, skipping LLM translation: "${translatedText}"`);
+    } else if (cacheLookup.kind === 'miss') {
+      textForTranslation = cacheLookup.textForTranslation;
+      cacheKey = cacheLookup.cacheKey;
     }
-    const translatedText = stripKeepTags(rawTranslatedText);
-    logger.info({ ...ctx, who, targetLang, translatedText }, `${who} translation (${targetLang}): "${translatedText}"`);
+
+    if (translatedText === undefined) {
+      // 术语库检测：命中当前 /game 选定游戏的黑话就本地换成目标语言真实译词、用 <keep>
+      // 包住，让 LLM 只管调整周围语法，标签内容不许动。Phase A 先不做翻译后校验，靠下面
+      // 这条日志人工盯 LLM 有没有老实遵循标签指令（见 CLAUDE.md「游戏黑话/专有名词术语库」）。
+      const { text: preparedText, hitCount } = applyTerminology(
+        textForTranslation,
+        session.sourceLang,
+        targetLang,
+        session?.game,
+      );
+      if (hitCount > 0) {
+        logger.info({ ...ctx, who, hitCount, preparedText }, `${who} matched ${hitCount} term(s), sending to translation after preprocessing: "${preparedText}"`);
+      }
+
+      const rawTranslatedText = await translate(preparedText, targetLang);
+      logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] translation returned`);
+      if (hitCount > 0) {
+        logger.info({ ...ctx, who, rawTranslatedText }, `${who} raw translation output (for verification, includes <keep> tags): "${rawTranslatedText}"`);
+      }
+      translatedText = stripKeepTags(rawTranslatedText);
+      logger.info({ ...ctx, who, targetLang, translatedText }, `${who} translation (${targetLang}): "${translatedText}"`);
+
+      if (cacheKey && translatedText) {
+        // 不 await：写缓存不该拖慢这句话本身的播放，跟下面 saveOutputRecording 不等
+        // 落盘完成是同一个思路。setCachedTranslation 内部已经 try/catch 兜底了
+        // Redis 不可用/超时的情况（见 adapter/out/redis/translate-cache.js），
+        // 这里不用再包一层，写失败顶多是下次同样的话还得重新翻译一次。
+        setCachedTranslation(cacheKey, translatedText);
+      }
+    }
 
     if (!translatedText) {
       logger.info({ ...ctx, who }, `${who} translation result is empty, skipping playback`);

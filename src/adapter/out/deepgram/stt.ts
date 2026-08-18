@@ -29,7 +29,7 @@ interface DeepgramStreamingMessage {
   };
 }
 
-function buildUrl({ language }: TranscribeOptions): string {
+function buildUrl({ language, keyterms }: TranscribeOptions): string {
   const params = new URLSearchParams({
     model: MODEL,
     encoding: ENCODING,
@@ -42,6 +42,14 @@ function buildUrl({ language }: TranscribeOptions): string {
     params.set('language', LANGUAGE_CODE_MAP[language] ?? language);
   } else {
     params.set('detect_language', 'true');
+  }
+  // Deepgram keyterm prompting（nova-3）：keyterm 参数可以重复出现多次，每次一个词，
+  // 不是逗号拼成一个字符串——用 URLSearchParams.append，不是 set。官方硬上限是 500
+  // token（约 100 个词，见 https://developers.deepgram.com/docs/keyterm），调用方
+  // （domain/keyterms.js 的 getKeyterms）已经按更保守的默认值截断过，这里不重复做
+  // 上限校验，传多少个就加多少个。
+  for (const term of keyterms ?? []) {
+    params.append('keyterm', term);
   }
   return `wss://api.deepgram.com/v1/listen?${params}`;
 }

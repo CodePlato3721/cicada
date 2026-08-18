@@ -13,6 +13,13 @@ const logger = createLogger('ports/stt');
 export interface TranscribeOptions {
   language?: string;
   prompt?: string;
+  // STT 供应商相关的识别关键词增强（目前只有 Deepgram 的 keyterm prompting 用得上，
+  // 见 adapter/out/deepgram/stt.ts）——传一批当前游戏黑话的源语言词形，让识别阶段
+  // 对这些生僻/专有名词加权，而不是等转写完了再做后处理纠错（术语库 applyTerminology
+  // 那层做不到"STT 直接把整个词吞掉、换成别的常见字"这种情况，见 CCD-3 期间的实测：
+  // "打野"被识别成孤立的"也"，术语库变体匹配对这种情况无能为力，只能从识别源头加权）。
+  // 不是所有供应商都支持这个概念，不支持的可以直接忽略这个字段。
+  keyterms?: string[];
 }
 
 export interface TranscribeResult {

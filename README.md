@@ -27,8 +27,50 @@ Discord 实时语音翻译 Bot。`/join` 后自动监听频道语音,本地 VAD 
 2. 复制 `.env.example` 为 `.env`,按注释填好各项(至少要有 `DISCORD_BOT_TOKEN`、`DISCORD_CLIENT_ID`、一个翻译/STT 供应商的 API Key;TTS 按目标语言路由到 Deepgram/Azure,想用哪个目标语言就填对应供应商的 key,见 `.env.example` 里的说明)
 3. `npm run deploy-commands`——把 `/join`/`/leave`/`/lang`/`/game`/`/reset`/`/test` 注册到 `.env` 里 `DISCORD_TEST_GUILD_ID` 指定的测试服务器(必须先设这个变量,不然报错提示)
 4. `npm start`——bot 上线,去测试服务器打 `/join` 验证
+5. (可选)想本地测试翻译缓存,按下面「本地 Redis」一节起一个本地 Redis 并配好 `REDIS_URL`——不装也能跑,缓存层会自动降级,见下文
 
 **这一步经常忘、但很关键**:改了/新增了斜杠命令(比如新增一个命令文件、改了某个命令的参数),都要重新跑一次 `npm run deploy-commands`,不然 Discord 那边看不到新命令——改代码不会自动同步命令定义。
+
+---
+
+## 本地 Redis(翻译缓存,可选)
+
+给翻译环节加了一层 Redis 缓存,目前只覆盖中文源语言:同一句话(经过规范化)命中过缓存就直接返回译文,跳过 LLM 翻译调用。**这是可选依赖**:不装本地 Redis、`.env` 里不配 `REDIS_URL` 也完全不影响 bot 正常跑起来——启动时会打一行 `REDIS_URL not configured, translation cache layer disabled` 的警告日志,自动降级成"没有缓存"的行为,不会报错;Redis 连不上/超时同样只是记日志、跳过缓存,不会拖垮翻译流程。
+
+只有想在本地实际测试"同一句中文说两次,第二次是不是走了缓存"这种效果时,才需要起一个本地 Redis。任选一种方式:
+
+**方式一:Docker(推荐,跨平台一致,这台机器已经装了 Docker Desktop)**
+```bash
+docker run -d --name cicada-redis -p 6379:6379 redis:latest
+```
+
+**方式二:WSL2(Windows 本机没有官方维护的 Redis 发行版,不建议装那些第三方 Windows 移植版)**
+```bash
+wsl --install   # 已经装过 WSL2 可跳过
+# 进入 WSL2 发行版(比如 Ubuntu)之后:
+sudo apt update && sudo apt install redis-server
+sudo service redis-server start
+```
+
+**方式三:macOS**
+```bash
+brew install redis
+brew services start redis
+```
+
+起好之后,`.env` 里配:
+```
+REDIS_URL=redis://127.0.0.1:6379
+```
+
+`REDIS_COMMAND_TIMEOUT_MS`(单条 Redis 命令超时,默认 1000ms)和 `TRANSLATE_CACHE_TTL_SECONDS`(缓存条目存活时间,默认 259200 秒/3 天)都有默认值,本地开发一般不用改,具体说明见 `.env.example`。
+
+验证 Redis 本身连通:
+```bash
+redis-cli ping   # 期望输出 PONG
+```
+
+验证缓存在 bot 里真的生效:`/lang source:zh` 设好中文源语言后,对着同一句中文说两次,第二次的日志里应该出现 `translation cache hit, skipping LLM translation`,而不是走一遍完整的翻译流程。
 
 ---
 
