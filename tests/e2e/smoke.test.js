@@ -6,6 +6,12 @@
 // 这个测试是 TypeScript 迁移前后的行为回归基准:迁移前先在当前 JS 代码库上跑通它,
 // 迁移完成后(TASK-07)重新跑一遍,确认改写没有破坏核心链路的可运行性。
 //
+// STT 这一段（CCD-2 TASK-01 起）：STT 端口从"传文件路径"换成流式（open/pushChunk/
+// close），调用方要自己喂 PCM chunk。这里没有真实 Discord 音频流可用，改用
+// ttsWavToDiscordPcm 把 fixture（24kHz 单声道，本身就是 Deepgram TTS 合成出来的）
+// 转成跟真实链路里 voice-listener.js 推给 STT 的同一种格式（48kHz 立体声 16-bit
+// linear PCM），再按小块循环 pushChunk，模拟 decoder 'data' 事件边到边推送的节奏。
+//
 // 跑法：npm run test:e2e（先 tsc 编译到 dist/、再跑测试；需要 .env 里配好
 // DEEPGRAM_API_KEY / DEEPSEEK_API_KEY 等真实 key，会产生真实的 API 调用/计费，
 // 不适合放进 CI 无脑跑，先手动执行）。
@@ -16,12 +22,12 @@
 // 同一份代码，也更贴近"验证构建产物本身能不能跑通"这个目标。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, writeFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { transcribe } from '../../dist/application/ports/stt.js';
+import { openStream } from '../../dist/application/ports/stt.js';
 import { translate } from '../../dist/application/ports/translate.js';
 import { synthesize, resolveTtsProvider } from '../../dist/application/ports/tts.js';
-import { parseWav } from '../../dist/domain/wav.js';
+import { parseWav, ttsWavToDiscordPcm } from '../../dist/domain/wav.js';
 
 // fixture：一段固定的英文语音（tests/e2e/generate-fixture.mjs 生成，已提交进 git，
 // 不在测试运行时现合成——保持测试输入稳定、可重复，也少一次网络调用）。
@@ -33,11 +39,24 @@ const SOURCE_LANG = 'en';
 const TARGET_LANG = 'fr';
 const TTS_VOICE = 'aura-2-agathe-fr';
 
+// 约 16.7ms @48kHz/立体声/16-bit（48000 * 2 声道 * 2 字节/秒 = 192000 字节/秒），
+// 量级上接近真实 Opus 解码块（prism-media 那边 frameSize:960 @48kHz ≈ 20ms），
+// 不需要跟真实值分毫不差，只是让测试真的经过"分多次 pushChunk"这条路径，不是
+// 一次性整段塞进去糊弄过去。
+const PUSH_CHUNK_BYTES = 3200;
+
 const OUTPUT_DIR = fileURLToPath(new URL('./output/', import.meta.url));
 const OUTPUT_PATH = fileURLToPath(new URL('./output/smoke-output.wav', import.meta.url));
 
 test('STT → 翻译 → TTS 核心链路能跑通并产出一个 wav 文件', async () => {
-  const sttResult = await transcribe(FIXTURE_PATH, { language: SOURCE_LANG });
+  const fixtureWav = await readFile(FIXTURE_PATH);
+  const pcm48kStereo = ttsWavToDiscordPcm(fixtureWav);
+
+  const sttStream = openStream({ language: SOURCE_LANG });
+  for (let offset = 0; offset < pcm48kStereo.length; offset += PUSH_CHUNK_BYTES) {
+    sttStream.pushChunk(pcm48kStereo.subarray(offset, offset + PUSH_CHUNK_BYTES));
+  }
+  const sttResult = await sttStream.close();
   const transcript = sttResult.text?.trim();
   assert.ok(transcript, `STT 应该识别出非空文本，实际返回：${JSON.stringify(sttResult)}`);
 

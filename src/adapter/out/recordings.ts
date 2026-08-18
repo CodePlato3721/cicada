@@ -1,20 +1,24 @@
 import wav from 'wav';
 import { createWriteStream } from 'node:fs';
 import { mkdir, writeFile, readdir, stat, unlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { monoFloat32ToInt16Buffer } from '../../domain/pcm.js';
 import { createLogger } from './logger.js';
 
 const logger = createLogger('recordings');
 
-// 把语音段落盘成 wav 文件。输入段这份不是纯调试用途——Groq STT 的 SDK 要求传文件路径
-// （内部用 createReadStream 读取），所以这次落盘是主链路里必须的一步；
-// 输出（TTS 结果）这份纯粹是调试留痕，方便回放排查翻译/合成效果，不影响播放本身。
+// 把语音段落盘成 wav 文件。STT 从 CCD-2 TASK-01 起改成流式（VAD 边界一确定就直接
+// 拿到转写结果），不再需要先把整句话落盘成文件再喂给供应商——输入/输出这两份录音
+// 现在都纯粹是调试留痕，方便回放排查转写/翻译/合成效果，不影响主链路本身。
 //
-// 默认两份都留（跟原来行为一致，方便调试），但 RECORDINGS_DIR 会按 RECORDINGS_RETENTION_HOURS
-// 自动清理旧文件，不会无限增长。不想攒盘就设 SAVE_RECORDINGS=false：这时输入录音只临时写到
-// 系统 temp 目录、喂完 STT 立刻删（主链路照常工作），输出录音直接跳过不写。
+// 调用方（adapter/in/voice-listener.js）在 VAD 判定这句话说完、拿到完整 monoFloat32
+// 的同一时刻另起一个不 await 的异步任务调用 saveInputRecording——这是跟主链路
+// （流式转录 → handleSegment）并行的旁路备份，不阻塞转写结果的返回和下游触发；
+// 备份写入失败只 .catch() 打日志，不能拖慢或中断主链路。
+//
+// 默认两份都留，但 RECORDINGS_DIR 会按 RECORDINGS_RETENTION_HOURS 自动清理旧文件，
+// 不会无限增长。不想攒盘就设 SAVE_RECORDINGS=false：两份都直接跳过、不落盘
+// （没有下游会再读这份文件，不需要像以前那样临时写到系统 temp 目录）。
 const RECORDINGS_DIR = process.env.RECORDINGS_DIR;
 const SAVE_RECORDINGS = process.env.SAVE_RECORDINGS !== 'false';
 const RETENTION_HOURS = Number(process.env.RECORDINGS_RETENTION_HOURS ?? 24);
@@ -42,32 +46,20 @@ async function writeMonoWav(filename: string, monoFloat32: Float32Array, sampleR
   await finished;
 }
 
-// 返回写入的文件路径，调用方（application/pipeline.js）要拿它去喂 STT，
-// 用完后应该调用 deleteRecording(filePath) 收尾（SAVE_RECORDINGS=true 时是 no-op，留档）。
+// 纯粹的旁路调试备份——不再返回文件路径（没有下游会拿它去喂 STT 了，见上面模块注释）。
+// SAVE_RECORDINGS=false 时直接跳过、不落盘、不写 temp 文件。
 export async function saveInputRecording(
   userId: string,
   stamp: string | number,
   monoFloat32: Float32Array,
   sampleRate: number,
-): Promise<string> {
-  if (!SAVE_RECORDINGS) {
-    const filename = join(tmpdir(), `dc-translate-${userId}-${stamp}.wav`);
-    await writeMonoWav(filename, monoFloat32, sampleRate);
-    return filename;
-  }
+): Promise<void> {
+  if (!SAVE_RECORDINGS) return;
 
   await ensureDir();
   pruneOldRecordings().catch((err) => logger.error({ err }, 'Failed to prune old recordings'));
   const filename = join(RECORDINGS_DIR as string, `${userId}-${stamp}.wav`);
   await writeMonoWav(filename, monoFloat32, sampleRate);
-  return filename;
-}
-
-// STT 用完这份输入录音之后调用。SAVE_RECORDINGS=false 时清掉 temp 文件；
-// =true 时这份是留存证据，不删。
-export async function deleteRecording(filePath: string): Promise<void> {
-  if (SAVE_RECORDINGS) return;
-  await unlink(filePath).catch(() => {});
 }
 
 export async function saveOutputRecording(userId: string, stamp: string | number, wavBuffer: Buffer): Promise<void> {

@@ -2,8 +2,8 @@ import type { VoiceConnection } from '@discordjs/voice';
 import { ttsWavToDiscordPcm } from '../domain/wav.js';
 import { estimateGender } from '../domain/pitch.js';
 import { applyTerminology, stripKeepTags } from '../domain/terminology.js';
-import { saveInputRecording, deleteRecording, saveOutputRecording } from '../adapter/out/recordings.js';
-import { transcribe, SUPPORTED_SOURCE_LANGS } from './ports/stt.js';
+import { saveOutputRecording } from '../adapter/out/recordings.js';
+import { SUPPORTED_SOURCE_LANGS, type TranscribeResult } from './ports/stt.js';
 import { translate } from './ports/translate.js';
 import { synthesize } from './ports/tts.js';
 import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
@@ -92,6 +92,14 @@ function resolveSpeakerVoice(guildId: string, speakerState: SpeakerState, provid
 // enqueuePlayback 时必须带上这个 sequence，交给播放队列自己按顺序重排，不是这个函数
 // 直接决定播放顺序。
 //
+// transcribeResult：这句话的 STT 结果，voice-listener.js 已经在音频流边到边推送的
+// 同时并行做完了流式转录（VAD 判定这句话开始时开一路 STT 流，判定结束时关流拿最终
+// 结果），不是这个函数自己去调用 STT——省掉了"整句说完 → 落盘 → 整段发送 → 等响应"
+// 这段串行等待，是本次改动（STT 从 pre-recorded 换成流式）的核心目的。null 代表这句话
+// 对应的流式 STT 连接在拿到最终结果之前中途失败了（网络中断、供应商报错）——不做任何
+// "退回旧的 pre-recorded 方式重试"的兜底，直接判定这句话失败（见下面函数体里的早期
+// return 分支）。
+//
 // 这个函数不是每次调用都会真的播放东西（比如目标语言没设置、翻译结果为空这些分支会
 // 提前 return，不产出任何音频）——但 sequence 号码已经在调用方那边分配出去了，就算
 // 这次不播放，也必须显式告诉播放队列"这个号位跳过、不用等了"（skipPlaybackSequence），
@@ -106,6 +114,7 @@ export async function handleSegment(
   monoFloat32: Float32Array,
   speakerState: SpeakerState,
   sequence: number,
+  transcribeResult: TranscribeResult | null,
 ): Promise<void> {
   // t0：VAD 刚判定"这句话说完了"的那一刻，后面每一步都相对这个时间点打耗时，
   // 方便定位延迟到底卡在哪一环（STT 网络请求？翻译？TTS？还是别的地方）。
@@ -120,6 +129,17 @@ export async function handleSegment(
   try {
     detectSpeakerGender(speakerState, monoFloat32);
 
+    // 流式 STT 连接在拿到最终结果之前中途失败（网络中断、供应商报错）时，
+    // voice-listener.js 的 closeSttStream 已经把这种情况转成 null 传过来——不做任何
+    // "退回旧的 pre-recorded 方式重试"的兜底（见 DESIGN.md），直接判定这句话失败，
+    // 不进入术语检测/翻译/播放。sequence 号在 voice-listener.js 里已经同步分配过了，
+    // 这里提前 return，交给下面的 finally 块统一 skipPlaybackSequence，跟"目标语言
+    // 未设置"等其他提前 return 分支走同一套模式，不用在这里手动调用一遍。
+    if (!transcribeResult) {
+      logger.info({ ...ctx, who }, `${who} streamed STT failed for this segment, skipping translate/playback`);
+      return;
+    }
+
     const session = getSession(guildId);
     if (!session?.targetLang) {
       // 目标语言从没设置过（没有默认值，见 session.js）——不翻译、不消耗 STT/翻译额度，
@@ -130,8 +150,6 @@ export async function handleSegment(
     }
 
     const stamp = Date.now();
-    const segmentFile = await saveInputRecording(userId, stamp, monoFloat32, 16000);
-    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] audio saved to disk, starting STT`);
 
     // 源语言没手动设置过（session.sourceLang 是假值）就交给 STT 自动检测——记下这次调用
     // 之前是不是这个状态，STT 返回之后好判断这次是不是"第一句话，需要锁定检测结果"。
@@ -144,18 +162,14 @@ export async function handleSegment(
 
     const targetLang = session.targetLang;
     const provider = session.ttsProvider; // 跟 targetLang 一起在 setTargetLang 里联动设置，见 session.js
-    let result;
-    try {
-      result = await transcribe(segmentFile, {
-        language: session.sourceLang,
-        prompt: speakerState.lastTranscript,
-      });
-    } finally {
-      // SAVE_RECORDINGS=false 时这份只是喂 STT 用的临时文件，用完即删；
-      // =true 时是留存证据，deleteRecording 内部是 no-op。
-      await deleteRecording(segmentFile);
-    }
-    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] STT returned`);
+
+    // STT 这一步已经在 voice-listener.js 里跟音频流并行做完了：VAD 判定这句话开始的
+    // 同时开一路流式 STT 连接，说话过程中 PCM 边到边推过去，判定说完时关流拿最终结果——
+    // 不再像 pre-recorded 时代那样自己把整段音频落盘、发一次完整请求再等响应。
+    // transcribeResult 就是调用方（voice-listener.js 的 handleDetectedSegment）已经
+    // 拿到手的最终转写结果，wav 落盘（备份用途）搬到了 TASK-02，这里不落盘。
+    const result = transcribeResult;
+    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] using streamed STT result`);
 
     // 这次是自动检测、且真的检测出语种了——锁定进 session（跟 /lang source:<语言> 手动
     // 设置效果一样，走同一个 setSourceLang，之后所有人共用这个源语言，不用每句话都重新

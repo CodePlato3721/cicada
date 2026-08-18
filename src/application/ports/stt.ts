@@ -1,11 +1,15 @@
-import { transcribe as groqTranscribe } from '../../adapter/out/groq/stt.js';
-import { transcribe as deepgramTranscribe } from '../../adapter/out/deepgram/stt.js';
+import { openStream as deepgramOpenStream } from '../../adapter/out/deepgram/stt.js';
+import { openStream as groqOpenStream } from '../../adapter/out/groq/stt.js';
 import { createLogger } from '../../adapter/out/logger.js';
 
 const logger = createLogger('ports/stt');
 
-// STT 端口：契约 transcribe(filePath, { language, prompt }) => Promise<{ text, ... }>，
-// pipeline.js 只用得到返回值的 .text 字段，其他字段（language/duration 等）不保证跨供应商一致。
+// STT 端口：契约从"pre-recorded 整段转写"（transcribe(filePath, options) => Promise<TranscribeResult>）
+// 换成流式（open/pushChunk/close）——VAD 判定一句话开始时 open 一路连接，说话过程中
+// pushChunk 把 PCM 边到边推过去（不等一句话说完），VAD 判定这句话结束时 close()，
+// resolve 出最终转写结果。目的是省掉"整句说完 → 落盘 → 整段发送 → 等响应"这段串行
+// 等待，边界一确定就能立刻拿到结果。pipeline.js 只用得到返回值的 .text 字段，其他
+// 字段（language/duration 等）不保证跨供应商一致。
 export interface TranscribeOptions {
   language?: string;
   prompt?: string;
@@ -17,14 +21,28 @@ export interface TranscribeResult {
   [key: string]: unknown;
 }
 
-export type TranscribeFn = (filePath: string, options?: TranscribeOptions) => Promise<TranscribeResult>;
+export interface SttStream {
+  pushChunk(chunk: Buffer): void;
+  close(): Promise<TranscribeResult>;
+}
 
-const PROVIDERS: Record<string, TranscribeFn> = {
-  groq: groqTranscribe,
-  deepgram: deepgramTranscribe,
+export type OpenStreamFn = (options?: TranscribeOptions) => SttStream;
+
+// groq/stt.ts 现在也符合这次流式契约的形状了（TASK-04）——但按 DESIGN.md 的说明，
+// Groq 当前不是实际启用的供应商（.env 里 STT_PROVIDER=deepgram），没有必要实现真正
+// 的流式：内部把 pushChunk 推进来的 PCM 攒起来，close() 时一次性打包成 wav 调旧的
+// pre-recorded Whisper 接口，对外表现跟 deepgram 这边的真流式一致，但没有"边说边转录"
+// 的延时收益。
+const PROVIDERS: Record<string, OpenStreamFn> = {
+  deepgram: deepgramOpenStream,
+  groq: groqOpenStream,
 };
 
-const PROVIDER_NAME = process.env.STT_PROVIDER || 'groq';
+// 默认值跟 .env.example 的实际默认保持一致（deepgram，不是旧版的 groq）——旧默认值
+// 挑 groq 是因为那时 groq 是唯一/首个供应商，现在实际启用、真正拿到"边说边转录"这个
+// 延时收益的是 deepgram（见 DESIGN.md），groq 只是接口形状兼容、不是推荐配置，
+// 继续默认指向它没有意义。
+const PROVIDER_NAME = process.env.STT_PROVIDER || 'deepgram';
 const impl = PROVIDERS[PROVIDER_NAME];
 
 if (!impl) {
@@ -33,8 +51,8 @@ if (!impl) {
 
 logger.info({ provider: PROVIDER_NAME }, `STT provider: ${PROVIDER_NAME}`);
 
-export function transcribe(filePath: string, options?: TranscribeOptions): Promise<TranscribeResult> {
-  return impl(filePath, options);
+export function openStream(options?: TranscribeOptions): SttStream {
+  return impl(options);
 }
 
 export const activeProvider = PROVIDER_NAME;
