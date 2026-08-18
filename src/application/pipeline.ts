@@ -266,7 +266,9 @@ export async function handleSegment(
       { ...ctx, who, elapsedMs: Date.now() - t0, provider, voice },
       `${who} [${elapsed()}] TTS returned (provider: ${provider}, voice: ${voice}), entering playback queue`,
     );
-    await saveOutputRecording(userId, stamp, ttsWav);
+    // 不 await：这只是留档用的调试录音，转 PCM/播放只依赖内存里的 ttsWav，
+    // 不需要等落盘完成才能继续；落盘失败也不该拖慢或打断播放，用 .catch 单独兜底。
+    saveOutputRecording(userId, stamp, ttsWav).catch((err) => logger.error({ err, userId, stamp }, 'Failed to save output recording'));
 
     const pcm = ttsWavToDiscordPcm(ttsWav);
     enqueuePlayback(guildId, connection, pcm, sequence);
