@@ -42,7 +42,7 @@ export async function chatCompletion({ model, messages, temperature }: ChatCompl
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.deepseekApiKey}`,
     },
-    body: JSON.stringify({ model, messages, temperature }),
+    body: JSON.stringify({ model, messages, temperature, thinking: { type: 'disabled' } }),
   });
 
   if (!response.ok) {
