@@ -32,5 +32,6 @@ export interface ExternalApiUsage {
 export interface BillingDecision {
   allowed: boolean;
   reason?: string;
+  userMessage?: string;
   planId?: BillingPlanId;
 }

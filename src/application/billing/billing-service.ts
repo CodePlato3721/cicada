@@ -45,13 +45,23 @@ export async function checkBillingAllowed({
   try {
     const account = await ensureAccount(client, guildId);
     if (account.status !== 'active') {
-      return { allowed: false, planId: account.planId, reason: `billing account is ${account.status}` };
+      return {
+        allowed: false,
+        planId: account.planId,
+        reason: `billing account is ${account.status}`,
+        userMessage: `Translation is unavailable because this server's billing account is ${account.status}.`,
+      };
     }
 
     const plan = BILLING_PLANS[account.planId];
     const languages = [sourceLang, targetLang].filter((lang): lang is string => Boolean(lang));
     if (plan.allowedLanguageCodes && languages.some((lang) => !plan.allowedLanguageCodes?.has(lang))) {
-      return { allowed: false, planId: account.planId, reason: `plan ${plan.id} does not include ${languages.join('/')} translation` };
+      return {
+        allowed: false,
+        planId: account.planId,
+        reason: `plan ${plan.id} does not include ${languages.join('/')} translation`,
+        userMessage: `This server is on the Free plan, which only supports ZH, EN, ES, JA, and KO. ${sourceLang ?? '?'} -> ${targetLang ?? '?'} requires the Server plan.`,
+      };
     }
 
     if (plan.dailyVoiceSecondsLimit !== null || plan.dailyTextCharsLimit !== null) {
@@ -67,10 +77,20 @@ export async function checkBillingAllowed({
       const nextVoiceSeconds = Number(row.voice_seconds) + voiceSeconds;
       const nextTextChars = Number(row.text_chars) + textChars;
       if (plan.dailyVoiceSecondsLimit !== null && nextVoiceSeconds > plan.dailyVoiceSecondsLimit) {
-        return { allowed: false, planId: account.planId, reason: `daily voice translation limit reached (${plan.dailyVoiceSecondsLimit}s)` };
+        return {
+          allowed: false,
+          planId: account.planId,
+          reason: `daily voice translation limit reached (${plan.dailyVoiceSecondsLimit}s)`,
+          userMessage: `This server has reached the Free plan daily voice translation limit (${Math.round(plan.dailyVoiceSecondsLimit / 60)} minutes/day).`,
+        };
       }
       if (plan.dailyTextCharsLimit !== null && nextTextChars > plan.dailyTextCharsLimit) {
-        return { allowed: false, planId: account.planId, reason: `daily text translation limit reached (${plan.dailyTextCharsLimit} chars)` };
+        return {
+          allowed: false,
+          planId: account.planId,
+          reason: `daily text translation limit reached (${plan.dailyTextCharsLimit} chars)`,
+          userMessage: `This server has reached the Free plan daily text translation limit (${plan.dailyTextCharsLimit} characters/day).`,
+        };
       }
     }
 
