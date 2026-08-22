@@ -12,6 +12,7 @@ import { synthesize } from './ports/tts.js';
 import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
 import { getSession, listSpeakerEntries, saveSpeaker, type SpeakerState } from './session.js';
 import { assignVoice } from './voice-assignment.js';
+import { checkBillingAllowed, recordExternalApiUsage } from './billing/billing-service.js';
 import { createLogger } from '../adapter/out/logger.js';
 
 const logger = createLogger('pipeline');
@@ -164,8 +165,7 @@ export async function handleSegment(
     // 拿到手的最终转写结果，wav 落盘（备份用途）搬到了 TASK-02，这里不落盘。
     const result = transcribeResult;
     logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] using streamed STT result`);
-    logger.info(
-      {
+    const sttUsageLog = {
         event: 'external_api_usage',
         stage: 'stt',
         ...ctx,
@@ -178,15 +178,31 @@ export async function handleSegment(
         providerAudioDurationSec: result.usage?.audioDurationSec,
         audioBytes: result.usage?.audioBytes,
         chunkCount: result.usage?.chunkCount,
-      },
-      'External API usage: STT transcription',
-    );
+        keytermCount: result.usage?.keytermCount,
+      } as const;
+    logger.info(sttUsageLog, 'External API usage: STT transcription');
+    await recordExternalApiUsage(sttUsageLog);
 
     const transcriptText = result.text?.trim();
     if (!transcriptText) {
       logger.info({ ...ctx, who }, `${who} no text recognized from this segment, skipping`);
       return;
     }
+
+    const billingDecision = await checkBillingAllowed({
+      guildId,
+      sourceLang: session.sourceLang,
+      targetLang,
+      textChars: transcriptText.length,
+    });
+    if (!billingDecision.allowed) {
+      logger.info(
+        { ...ctx, who, planId: billingDecision.planId, reason: billingDecision.reason },
+        `${who} billing limit blocked translation: ${billingDecision.reason}`,
+      );
+      return;
+    }
+
     logger.info({ ...ctx, who, transcript: transcriptText }, `${who} transcript: "${transcriptText}"`);
     speakerState.lastTranscript = transcriptText;
     await saveSpeaker(guildId, userId, speakerState);

@@ -1,5 +1,6 @@
 import { parseWav } from '../../domain/wav.js';
 import type { UsageLogContext } from '../../application/ports/translate.js';
+import type { ExternalApiUsage } from '../../application/billing/types.js';
 
 export function wavDurationSec(buffer: Buffer): number | undefined {
   try {
@@ -13,6 +14,7 @@ export function wavDurationSec(buffer: Buffer): number | undefined {
 export function buildTtsUsageFields({
   provider,
   model,
+  voice,
   text,
   audio,
   elapsedMs,
@@ -20,16 +22,18 @@ export function buildTtsUsageFields({
 }: {
   provider: string;
   model: string;
+  voice?: string;
   text: string;
   audio: Buffer;
   elapsedMs: number;
   logContext?: UsageLogContext;
-}): Record<string, unknown> {
+}): ExternalApiUsage & { event: 'external_api_usage' } {
   return {
     event: 'external_api_usage',
     stage: 'tts',
     provider,
     model,
+    voice,
     ...logContext,
     elapsedMs,
     inputTextChars: text.length,

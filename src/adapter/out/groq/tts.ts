@@ -2,6 +2,7 @@ import type { SynthesizeOptions, VoicesByGender } from '../../../application/por
 import { getGroqClient } from './client.js';
 import { createLogger } from '../logger.js';
 import { buildTtsUsageFields } from '../usage-log.js';
+import { recordExternalApiUsage } from '../../../application/billing/billing-service.js';
 
 const logger = createLogger('groq/tts');
 const MODEL = 'canopylabs/orpheus-v1-english';
@@ -55,16 +56,15 @@ export async function synthesize(
   });
 
   const audio = Buffer.from(await response.arrayBuffer());
-  logger.info(
-    buildTtsUsageFields({
-      provider: 'groq',
-      model: MODEL,
-      text,
-      audio,
-      elapsedMs: Date.now() - startedAt,
-      logContext,
-    }),
-    'External API usage: TTS synthesis',
-  );
+  const usageLog = buildTtsUsageFields({
+    provider: 'groq',
+    model: MODEL,
+    text,
+    audio,
+    elapsedMs: Date.now() - startedAt,
+    logContext,
+  });
+  logger.info(usageLog, 'External API usage: TTS synthesis');
+  await recordExternalApiUsage(usageLog);
   return audio;
 }

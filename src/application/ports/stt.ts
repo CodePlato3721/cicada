@@ -31,6 +31,7 @@ export interface TranscribeResult {
     audioDurationSec?: number;
     audioBytes?: number;
     chunkCount?: number;
+    keytermCount?: number;
     elapsedMs?: number;
   };
   [key: string]: unknown;

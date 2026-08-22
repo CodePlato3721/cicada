@@ -1,0 +1,27 @@
+services:
+  redis:
+    image: redis:7
+    container_name: cicada-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - cicada_redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  postgres:
+    image: postgres:17
+    container_name: cicada-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cicada
+      POSTGRES_USER: cicada
+      POSTGRES_PASSWORD: cicada_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - cicada_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  cicada_redis_data:
+  cicada_postgres_data:

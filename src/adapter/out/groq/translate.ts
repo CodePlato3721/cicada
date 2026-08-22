@@ -2,6 +2,7 @@ import { getGroqClient } from './client.js';
 import { buildTranslationMessages } from '../../../domain/translation-prompt.js';
 import type { TranslateOptions } from '../../../application/ports/translate.js';
 import { createLogger } from '../logger.js';
+import { recordExternalApiUsage } from '../../../application/billing/billing-service.js';
 
 const logger = createLogger('groq/translate');
 const MODEL = 'llama-3.1-8b-instant';
@@ -20,8 +21,7 @@ export async function translate(text: string, targetLang: string, options: Trans
   });
 
   const translatedText = completion.choices[0]?.message?.content?.trim() ?? '';
-  logger.info(
-    {
+  const usageLog = {
       event: 'external_api_usage',
       stage: 'llm',
       provider: 'groq',
@@ -34,9 +34,9 @@ export async function translate(text: string, targetLang: string, options: Trans
       completionTokens: completion.usage?.completion_tokens,
       totalTokens: completion.usage?.total_tokens,
       usage: completion.usage,
-    },
-    'External API usage: LLM translation',
-  );
+    } as const;
+  logger.info(usageLog, 'External API usage: LLM translation');
+  await recordExternalApiUsage(usageLog);
 
   return translatedText;
 }
