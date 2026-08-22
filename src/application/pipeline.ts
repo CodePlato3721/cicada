@@ -44,6 +44,14 @@ async function sendConfigNotSetReminder(voiceChannel: VoiceBasedChannel): Promis
   await voiceChannel.send(CONFIG_NOT_SET_MESSAGE).catch((err: unknown) => logger.error({ err }, 'Failed to send config-not-set reminder'));
 }
 
+async function sendBillingBlockedReminder(voiceChannel: VoiceBasedChannel, message: string): Promise<void> {
+  await voiceChannel.send(`⚠️ ${message}`).catch((err: unknown) => logger.error({ err }, 'Failed to send billing-blocked reminder'));
+}
+
+async function sendBillingWarningReminder(voiceChannel: VoiceBasedChannel, message: string): Promise<void> {
+  await voiceChannel.send(`⚠️ ${message}`).catch((err: unknown) => logger.error({ err }, 'Failed to send billing-warning reminder'));
+}
+
 // 说话人第一次开口时判断性别，纯声学特征、跟 TTS 供应商无关，只需要判一次、
 // 整场会话不变（不会因为目标语言/供应商切换而重新判断）。
 function detectSpeakerGender(speakerState: SpeakerState, monoFloat32: Float32Array): void {
@@ -200,7 +208,11 @@ export async function handleSegment(
         { ...ctx, who, planId: billingDecision.planId, reason: billingDecision.reason },
         `${who} billing limit blocked translation: ${billingDecision.reason}`,
       );
+      await sendBillingBlockedReminder(voiceChannel, billingDecision.userMessage ?? 'Translation is unavailable because this server has reached a billing limit.');
       return;
+    }
+    if (billingDecision.warningMessage) {
+      await sendBillingWarningReminder(voiceChannel, billingDecision.warningMessage);
     }
 
     logger.info({ ...ctx, who, transcript: transcriptText }, `${who} transcript: "${transcriptText}"`);

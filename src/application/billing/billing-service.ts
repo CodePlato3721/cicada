@@ -5,6 +5,8 @@ import { calculateEstimatedCostUsd } from './cost-calculator.js';
 import type { BillingDecision, ExternalApiUsage } from './types.js';
 
 const logger = createLogger('billing');
+const LOW_VOICE_SECONDS_REMAINING_WARNING = 5 * 60;
+const LOW_TEXT_CHARS_REMAINING_WARNING = 500;
 
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
@@ -45,14 +47,26 @@ export async function checkBillingAllowed({
   try {
     const account = await ensureAccount(client, guildId);
     if (account.status !== 'active') {
-      return { allowed: false, planId: account.planId, reason: `billing account is ${account.status}` };
+      return {
+        allowed: false,
+        planId: account.planId,
+        reason: `billing account is ${account.status}`,
+        userMessage: `Translation is unavailable because this server's billing account is ${account.status}.`,
+      };
     }
 
     const plan = BILLING_PLANS[account.planId];
     const languages = [sourceLang, targetLang].filter((lang): lang is string => Boolean(lang));
     if (plan.allowedLanguageCodes && languages.some((lang) => !plan.allowedLanguageCodes?.has(lang))) {
-      return { allowed: false, planId: account.planId, reason: `plan ${plan.id} does not include ${languages.join('/')} translation` };
+      return {
+        allowed: false,
+        planId: account.planId,
+        reason: `plan ${plan.id} does not include ${languages.join('/')} translation`,
+        userMessage: `This server is on the Free plan, which only supports ZH, EN, ES, JA, and KO. ${sourceLang ?? '?'} -> ${targetLang ?? '?'} requires the Server plan.`,
+      };
     }
+
+    let warningMessage: string | undefined;
 
     if (plan.dailyVoiceSecondsLimit !== null || plan.dailyTextCharsLimit !== null) {
       const usage = await client.query<{ voice_seconds: string; text_chars: string }>(
@@ -67,14 +81,37 @@ export async function checkBillingAllowed({
       const nextVoiceSeconds = Number(row.voice_seconds) + voiceSeconds;
       const nextTextChars = Number(row.text_chars) + textChars;
       if (plan.dailyVoiceSecondsLimit !== null && nextVoiceSeconds > plan.dailyVoiceSecondsLimit) {
-        return { allowed: false, planId: account.planId, reason: `daily voice translation limit reached (${plan.dailyVoiceSecondsLimit}s)` };
+        return {
+          allowed: false,
+          planId: account.planId,
+          reason: `daily voice translation limit reached (${plan.dailyVoiceSecondsLimit}s)`,
+          userMessage: `This server has reached the Free plan daily voice translation limit (${Math.round(plan.dailyVoiceSecondsLimit / 60)} minutes/day).`,
+        };
       }
       if (plan.dailyTextCharsLimit !== null && nextTextChars > plan.dailyTextCharsLimit) {
-        return { allowed: false, planId: account.planId, reason: `daily text translation limit reached (${plan.dailyTextCharsLimit} chars)` };
+        return {
+          allowed: false,
+          planId: account.planId,
+          reason: `daily text translation limit reached (${plan.dailyTextCharsLimit} chars)`,
+          userMessage: `This server has reached the Free plan daily text translation limit (${plan.dailyTextCharsLimit} characters/day).`,
+        };
+      }
+      if (plan.dailyVoiceSecondsLimit !== null) {
+        const remainingSeconds = Math.max(plan.dailyVoiceSecondsLimit - nextVoiceSeconds, 0);
+        if (remainingSeconds <= LOW_VOICE_SECONDS_REMAINING_WARNING) {
+          warningMessage = `This server has about ${Math.ceil(remainingSeconds / 60)} minute(s) of Free plan voice translation left today.`;
+        }
+      }
+      if (plan.dailyTextCharsLimit !== null) {
+        const remainingChars = Math.max(plan.dailyTextCharsLimit - nextTextChars, 0);
+        if (remainingChars <= LOW_TEXT_CHARS_REMAINING_WARNING) {
+          const textWarning = `This server has ${remainingChars} Free plan text character(s) left today.`;
+          warningMessage = warningMessage ? `${warningMessage} ${textWarning}` : textWarning;
+        }
       }
     }
 
-    return { allowed: true, planId: account.planId };
+    return { allowed: true, planId: account.planId, warningMessage };
   } finally {
     client.release();
   }
