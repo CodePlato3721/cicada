@@ -34,6 +34,7 @@ class GroqSttStream implements SttStream {
   }
 
   async close(): Promise<TranscribeResult> {
+    const startedAt = Date.now();
     const pcm = Buffer.concat(this.chunks);
     const wavBuffer = await encodeWav(pcm);
 
@@ -50,7 +51,18 @@ class GroqSttStream implements SttStream {
     // 实际响应还带 language/duration 等字段（SDK 类型没跟上 API 的完整返回形状）——
     // 显式取出 .text，language 按运行时实际形状读取，不用整个对象结构匹配 TranscribeResult
     // （跟迁移前的 pre-recorded transcribe() 处理方式一致，见 typescript-migration 规则）。
-    return { text: transcription.text, language: (transcription as { language?: string }).language };
+    return {
+      text: transcription.text,
+      language: (transcription as { language?: string }).language,
+      usage: {
+        provider: 'groq',
+        model: 'whisper-large-v3-turbo',
+        audioDurationSec: pcm.length / (SAMPLE_RATE * CHANNELS * (BIT_DEPTH / 8)),
+        audioBytes: pcm.length,
+        chunkCount: this.chunks.length,
+        elapsedMs: Date.now() - startedAt,
+      },
+    };
   }
 }
 

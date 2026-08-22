@@ -1,5 +1,10 @@
 import type { SynthesizeOptions, VoicesByGender } from '../../../application/ports/tts.js';
 import { getGroqClient } from './client.js';
+import { createLogger } from '../logger.js';
+import { buildTtsUsageFields } from '../usage-log.js';
+
+const logger = createLogger('groq/tts');
+const MODEL = 'canopylabs/orpheus-v1-english';
 
 // Groq 控制台没有给这几个声音标官方性别，这里按名字的常见性别印象分组，
 // 没有逐个试听验证过——如果听感不对，直接调整这两个数组，不影响其他逻辑
@@ -31,19 +36,35 @@ export const TTS_SUPPORTED_LANGS = ['en', 'ar'];
 
 // text: 待合成文本（英语/阿拉伯语，Orpheus 目前只支持这两种）。
 // 返回 wav 格式的 Buffer（Groq 这个模型固定只吐 wav，24kHz 单声道 16-bit）。
-export async function synthesize(text: string, { voice = 'autumn' }: SynthesizeOptions = { voice: 'autumn' }): Promise<Buffer> {
+export async function synthesize(
+  text: string,
+  { voice = 'autumn', logContext }: SynthesizeOptions = { voice: 'autumn' },
+): Promise<Buffer> {
   if (!VALID_VOICES.includes(voice)) {
     throw new Error(`voice must be one of: ${VALID_VOICES.join(', ')}`);
   }
 
   const groq = getGroqClient();
 
+  const startedAt = Date.now();
   const response = await groq.audio.speech.create({
     input: text,
-    model: 'canopylabs/orpheus-v1-english',
+    model: MODEL,
     voice,
     response_format: 'wav',
   });
 
-  return Buffer.from(await response.arrayBuffer());
+  const audio = Buffer.from(await response.arrayBuffer());
+  logger.info(
+    buildTtsUsageFields({
+      provider: 'groq',
+      model: MODEL,
+      text,
+      audio,
+      elapsedMs: Date.now() - startedAt,
+      logContext,
+    }),
+    'External API usage: TTS synthesis',
+  );
+  return audio;
 }

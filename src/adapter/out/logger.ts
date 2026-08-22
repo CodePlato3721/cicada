@@ -18,21 +18,53 @@
 //
 // LOG_LEVEL 环境变量控制输出级别（trace/debug/info/warn/error/fatal），默认 info。
 import pino from 'pino';
+import { Writable } from 'node:stream';
+import { createRequire } from 'node:module';
 
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
-const rootLogger = pino({
-  level: LOG_LEVEL,
-  // pino 默认 time 字段是 epoch 毫秒数——非 TTY（pm2）场景下日志就是原始 JSON，直接
-  // 显示这个字段人眼没法读，改成 ISO 字符串，ssh 上去 `pm2 logs` 直接看也知道是几点。
-  timestamp: pino.stdTimeFunctions.isoTime,
-  transport: process.stdout.isTTY
-    ? {
-        target: 'pino-pretty',
-        options: { translateTime: 'yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname' },
-      }
-    : undefined,
-});
+// TTY 分支不直接用 pino 的 `transport: { target: 'pino-pretty', ... }`（worker 线程）
+// 或者把 pino-pretty() 的返回值直接当 pino 的目标 stream 用（同线程，但 pino-pretty
+// 内部靠 sonic-boom 直接往 fd 写字节）——这两种实测在 Windows 的 PowerShell/cmd 控制台
+// 下都会把中文这类非 ASCII 字符按错误的代码页解析成乱码，哪怕 `chcp 65001` 已经设成
+// UTF-8。根因：Node 只有字符串走 `console.log`/`process.stdout.write(string)` 这条
+// 高层路径时，在 Windows 控制台上才会用 Unicode-safe 的 WriteConsoleW；sonic-boom
+// 那种直接写 fd（等价于 fs.writeSync）的方式不走这条路径，会被按系统 OEM 代码页
+// （常见是 437，不是当前 chcp 设的那个）重新解释，跟 chcp 设成什么无关。Linux/pm2
+// 环境不受影响——本来就不会进这个分支，直接吐原始 JSON。
+//
+// 修法：手动用 pino-pretty 的 prettyFactory 只做"格式化成字符串"这一步，不让
+// pino-pretty 自己的输出流负责真正写入；真正的写入交给 process.stdout.write(字符串)，
+// 走回 console.log 那条已验证在 Windows 上正常的路径。
+//
+// createRequire 而不是顶层 `import pino-pretty` 或走 pino 的 transport 机制：保持
+// "只有 TTY 分支才会真的加载 pino-pretty" 这个既有约定——顶层 import 会导致任何环境
+// 启动都要加载它，pino-pretty 放 devDependencies、生产环境 `npm ci --omit=dev` 不装它
+// 这件事就会破。
+function buildPrettyStream(): Writable {
+  const require = createRequire(import.meta.url);
+  const { prettyFactory } = require('pino-pretty') as typeof import('pino-pretty');
+  const prettify = prettyFactory({ translateTime: 'yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname' });
+
+  return new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      process.stdout.write(prettify(chunk.toString()));
+      callback();
+    },
+  });
+}
+
+const rootLogger = pino(
+  {
+    level: LOG_LEVEL,
+    // pino 默认 time 字段是 epoch 毫秒数——非 TTY（pm2）场景下日志就是原始 JSON，直接
+    // 显示这个字段人眼没法读，改成 ISO 字符串，ssh 上去 `pm2 logs` 直接看也知道是几点。
+    timestamp: pino.stdTimeFunctions.isoTime,
+  },
+  // 第二个参数是 pino 的目标 stream：TTY 用上面的同线程格式化 stream，非 TTY 传
+  // undefined，pino 会默认直接写 process.stdout（原始 JSON），跟改动前行为一致。
+  process.stdout.isTTY ? buildPrettyStream() : undefined,
+);
 
 // module：模块标签，对应以前手写的 `[pipeline]`/`[listener]` 这类前缀，会作为
 // 结构化字段（`module`）写进每条日志，而不是拼进 message 字符串里。

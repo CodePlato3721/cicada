@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && npm run build:copy-assets",
-    "build:copy-assets": "node -e \"require('fs').cpSync('src/domain/terminology','dist/domain/terminology',{recursive:true})\"",
+    "build:copy-assets": "node -e \"require('fs').cpSync('src/domain/terminology','dist/domain/terminology',{recursive:true});require('fs').cpSync('src/domain/keyterms','dist/domain/keyterms',{recursive:true})\"",
     "build:scripts": "tsc -p tsconfig.scripts.json",
     "start": "npm run build && node dist/index.js",
     "deploy-commands": "npm run build && node dist/deploy-commands.js",
@@ -28,6 +28,7 @@
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
     "groq-sdk": "^1.5.0",
+    "ioredis": "^5.11.1",
     "libsodium-wrappers": "^0.8.4",
     "onnxruntime-node": "^1.27.0",
     "opencc-js": "^1.4.1",

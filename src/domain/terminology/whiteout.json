@@ -730,7 +730,10 @@
     "term_id": "EVENT_SUNFIRE_CASTLE",
     "translations": {
       "en": "Sunfire Castle",
-      "zh": "決戰王城",
+      "zh": [
+        "決戰王城",
+        "太陽城"
+      ],
       "ko": "캐슬 전투",
       "ar": "قلعة نار الشمس"
     }

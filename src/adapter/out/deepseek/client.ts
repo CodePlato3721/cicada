@@ -12,6 +12,20 @@ export interface ChatCompletionParams {
 
 export interface ChatCompletionResponse {
   choices: Array<{ message: { content?: string | null } }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    prompt_tokens_details?: {
+      cached_tokens?: number;
+      [key: string]: unknown;
+    };
+    completion_tokens_details?: {
+      reasoning_tokens?: number;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
 }
 
 // DeepSeek 的 API 是 OpenAI 兼容的 REST 接口，这里没有额外装 SDK（openai/deepseek 官方包都没引入），

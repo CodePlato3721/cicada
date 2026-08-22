@@ -1,6 +1,7 @@
 import * as groq from '../../adapter/out/groq/tts.js';
 import * as deepgram from '../../adapter/out/deepgram/tts.js';
 import * as azure from '../../adapter/out/azure/tts.js';
+import type { UsageLogContext } from './translate.js';
 
 // TTS 端口：不像 STT/翻译端口那样"进程启动时用一个 PROVIDER 环境变量选定一个供应商、
 // 整个进程生命周期都用它"——因为不同目标语言要用不同供应商才能真的出声音（各家 TTS
@@ -15,6 +16,7 @@ export interface VoicesByGender {
 export interface SynthesizeOptions {
   voice: string;
   targetLang?: string;
+  logContext?: UsageLogContext;
 }
 
 export interface TtsProviderModule {
@@ -49,15 +51,16 @@ export interface SynthesizeParams {
   voice: string;
   targetLang?: string;
   provider: string;
+  logContext?: UsageLogContext;
 }
 
 // provider 由调用方显式传入（不再有"当前唯一激活的供应商"这个全局概念）。
-export function synthesize(text: string, { voice, targetLang, provider }: SynthesizeParams): Promise<Buffer> {
+export function synthesize(text: string, { voice, targetLang, provider, logContext }: SynthesizeParams): Promise<Buffer> {
   const impl = PROVIDERS[provider];
   if (!impl) {
     throw new Error(`Unknown TTS provider: "${provider}", options: ${Object.keys(PROVIDERS).join(', ')}`);
   }
-  return impl.synthesize(text, { voice, targetLang });
+  return impl.synthesize(text, { voice, targetLang, logContext });
 }
 
 // voice-assignment.js 按性别分配音色时，要先知道"这个供应商、这个语言下有哪些音色可选"

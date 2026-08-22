@@ -60,11 +60,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     // 第二条消息：语言设置说明 + /leave，跟第一条的"能不能听到声音"这个自检关注点
     // 不是一回事，拆开发，避免堆成一大段。
+    //
+    // 源语言曾经有"不设置就靠 STT 自动检测"的兜底，已经移除（实测检测准确度太低，
+    // 见 pipeline.js）——source 现在跟 target 一样，必须显式设置，没有默认值。
+    // /config 一条命令把 source/target/game 一次设完，是现在唯一推荐的起步路径。
     await interaction.followUp({
       content:
-        'Before I can translate anything, you must set a target language with `/lang target:<The language you want Cicada to speak>` — ' +
+        'Before I can translate anything, you must configure me with ' +
+        '`/config source:<language they speak> target:<language you want Cicada to speak> game:<optional>` — ' +
         "until you do, I'll just remind you to set it instead of translating.\n\n" +
-        "Source language is optional — if you don't set it with `/lang source:<language>`, I'll auto-detect it from the first thing said and lock it in.\n\n" +
         'Use /leave to stop.',
       ephemeral: true,
     });

@@ -29,7 +29,18 @@ interface DeepgramStreamingMessage {
   };
 }
 
-function buildUrl({ language }: TranscribeOptions): string {
+function describeWebSocketError(event: Event): Record<string, unknown> {
+  const errorEvent = event as ErrorEvent & { error?: unknown };
+  const err = errorEvent.error;
+  return {
+    eventType: event.type,
+    message: errorEvent.message,
+    errorName: err instanceof Error ? err.name : undefined,
+    errorMessage: err instanceof Error ? err.message : undefined,
+  };
+}
+
+function buildUrl({ language, keyterms }: TranscribeOptions): string {
   const params = new URLSearchParams({
     model: MODEL,
     encoding: ENCODING,
@@ -42,6 +53,14 @@ function buildUrl({ language }: TranscribeOptions): string {
     params.set('language', LANGUAGE_CODE_MAP[language] ?? language);
   } else {
     params.set('detect_language', 'true');
+  }
+  // Deepgram keyterm prompting（nova-3）：keyterm 参数可以重复出现多次，每次一个词，
+  // 不是逗号拼成一个字符串——用 URLSearchParams.append，不是 set。官方硬上限是 500
+  // token（约 100 个词，见 https://developers.deepgram.com/docs/keyterm），调用方
+  // （domain/keyterms.js 的 getKeyterms）已经按更保守的默认值截断过，这里不重复做
+  // 上限校验，传多少个就加多少个。
+  for (const term of keyterms ?? []) {
+    params.append('keyterm', term);
   }
   return `wss://api.deepgram.com/v1/listen?${params}`;
 }
@@ -60,6 +79,12 @@ class DeepgramSttStream implements SttStream {
   private finalTranscript = '';
   private detectedLanguage: string | undefined;
   private requestedLanguage: string | undefined;
+  private startedAt = Date.now();
+  private audioBytes = 0;
+  private chunkCount = 0;
+  private openFailed = false;
+  private pushOpenFailureLogged = false;
+  private closeSettled = false;
   private closing = false;
   private closePromise: Promise<TranscribeResult>;
   private settleClose!: (result: TranscribeResult) => void;
@@ -84,7 +109,36 @@ class DeepgramSttStream implements SttStream {
 
     this.opened = new Promise<void>((resolve, reject) => {
       this.ws.addEventListener('open', () => resolve(), { once: true });
-      this.ws.addEventListener('error', () => reject(new Error('Deepgram streaming connection failed to open')), { once: true });
+      this.ws.addEventListener(
+        'error',
+        (event) => {
+          const errorInfo = describeWebSocketError(event);
+          const err = new Error(
+            `Deepgram streaming connection failed to open (${[
+              errorInfo.message,
+              errorInfo.errorName,
+              errorInfo.errorMessage,
+            ]
+              .filter(Boolean)
+              .join('; ') || 'no detail from WebSocket runtime'})`,
+          );
+          this.openFailed = true;
+          logger.error(
+            {
+              err,
+              provider: 'deepgram',
+              model: MODEL,
+              requestedLanguage: this.requestedLanguage,
+              keytermCount: options.keyterms?.length ?? 0,
+              errorInfo,
+            },
+            'Deepgram streaming connection failed to open',
+          );
+          this.rejectClose(err);
+          reject(err);
+        },
+        { once: true },
+      );
     });
 
     this.ws.addEventListener('message', (event: MessageEvent) => {
@@ -110,26 +164,71 @@ class DeepgramSttStream implements SttStream {
     });
 
     this.ws.addEventListener('error', () => {
-      this.failClose(new Error('Deepgram streaming connection error'));
+      this.rejectClose(new Error('Deepgram streaming connection error'));
     });
 
     this.ws.addEventListener('close', (event: CloseEvent) => {
       if (this.closing) {
-        this.settleClose({
+        this.resolveClose({
           text: this.finalTranscript,
           // detected_language 只有走自动检测（没传 language）时才会有；主动指定了
           // language 就直接把那个值透出去，效果一样是"这段话的语种是什么"，跟
           // pre-recorded 时代 deepgram/stt.js 的行为保持一致。
           language: this.detectedLanguage ?? this.requestedLanguage,
+          usage: {
+            provider: 'deepgram',
+            model: MODEL,
+            audioDurationSec: this.audioBytes / (SAMPLE_RATE * CHANNELS * 2),
+            audioBytes: this.audioBytes,
+            chunkCount: this.chunkCount,
+            elapsedMs: Date.now() - this.startedAt,
+          },
         });
       } else if (!event.wasClean) {
         // 还没主动 close() 就断了——直接判定这句话失败，不重连/不重试（TASK-01 范围）。
-        this.failClose(new Error(`Deepgram streaming connection closed unexpectedly (code ${event.code})`));
+        const err = new Error(`Deepgram streaming connection closed unexpectedly (code ${event.code}, reason: ${event.reason || 'none'})`);
+        logger.error(
+          {
+            err,
+            provider: 'deepgram',
+            model: MODEL,
+            requestedLanguage: this.requestedLanguage,
+            closeCode: event.code,
+            closeReason: event.reason || undefined,
+            closeWasClean: event.wasClean,
+          },
+          'Deepgram streaming connection closed unexpectedly',
+        );
+        this.rejectClose(err);
       }
     });
   }
 
+  private resolveClose(result: TranscribeResult): void {
+    if (this.closeSettled) return;
+    this.closeSettled = true;
+    this.settleClose(result);
+  }
+
+  private rejectClose(err: Error): void {
+    if (this.closeSettled) return;
+    this.closeSettled = true;
+    this.failClose(err);
+  }
+
   pushChunk(chunk: Buffer): void {
+    this.audioBytes += chunk.length;
+    this.chunkCount += 1;
+    if (this.openFailed) {
+      if (!this.pushOpenFailureLogged) {
+        this.pushOpenFailureLogged = true;
+        logger.error(
+          { provider: 'deepgram', model: MODEL, requestedLanguage: this.requestedLanguage },
+          'Dropping audio chunks because Deepgram streaming connection failed to open',
+        );
+      }
+      return;
+    }
     this.opened
       .then(() => {
         if (this.ws.readyState === WebSocket.OPEN) this.ws.send(chunk);
@@ -137,7 +236,10 @@ class DeepgramSttStream implements SttStream {
       .catch((err: unknown) => {
         // 连接没建立成功的话 close() 那边的 promise 已经在 reject 路径上了，
         // 这里只是不让这次 push 变成一个没人处理的 rejected promise。
-        logger.error({ err }, 'Failed to push audio chunk to Deepgram streaming connection');
+        if (!this.pushOpenFailureLogged) {
+          this.pushOpenFailureLogged = true;
+          logger.error({ err }, 'Failed to push audio chunk to Deepgram streaming connection');
+        }
       });
   }
 

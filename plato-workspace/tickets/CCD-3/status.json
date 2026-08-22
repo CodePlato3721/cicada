@@ -1,0 +1,12 @@
+{
+    "type": "simple_feature",
+    "title": "增加 Redis 缓存层，优化调用 LLM 翻译的效率，命中缓存直接返回译文",
+    "designer": {
+        "session-id": "5b64ef24-67c9-4fc1-a5fa-061bfe358851",
+        "status": "DONE"
+    },
+    "coder": {
+        "session-id": "96d8647c-6f2d-4452-afcd-3d6eb725a3e5",
+        "status": "DONE"
+    }
+}

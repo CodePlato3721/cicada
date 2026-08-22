@@ -171,27 +171,26 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 已经用真实翻译 API(`TRANSLATE_PROVIDER=deepseek`)验证过指令遵循度:中/英/法互译测试(含法语阴阳性冠词这个关键考验场景)标签保留率和标签周围语法调整都符合预期。
 
 ### 术语检测用哪种语言扫描
-`session.sourceLang`/`session.targetLang` **现在都没有默认值**(见 `session.js` 的 `createSession`)——`/join` 之后两个都是 `undefined`,行为不对称:
+`session.sourceLang`/`session.targetLang` **现在都没有默认值、也都没有自动兜底**(见 `session.js` 的 `createSession`)——`/join` 之后两个都是 `undefined`,地位完全对称,必须显式设置一次才能开始翻译。
 
-- **`targetLang`**:必须显式 `/lang target:<语言>` 设置一次才能开始翻译,没有任何兜底。`/join` 成功后的回复文字会明确提示这一点。设置之前,`pipeline.js` 的 `handleSegment` 检测到 `session.targetLang` 是假值,**跳过 STT/翻译**(不浪费 API 额度),改为往 `session.voiceChannel` 发一条**固定文字提示**("⚠️ I can't translate yet — set a target language first with `/lang target:<language>`")。这条提示**故意不走语音播报**——最初的实现是合成播报语音,实测遇到过"日志显示播放成功、实际频道里完全没声音"这种静默失败(Discord 连接层面的权限/静音问题,bot 自己感知不到),排查成本高;文字消息走 `voiceChannel.send`,链路短得多,不依赖 TTS 供应商这条链路,失败了控制台也有明确报错,不会静默。这个提示**没有做节流/去重**,每次有人说话且 target 还没设置就会发一次,连续说话会连续触发、在频道文字聊天里堆好几条重复消息——刻意先做最简单的版本,如果实测太吵再加节流。
-- **`sourceLang`**:`/lang source:<语言>` 手动设置优先;没手动设置的话,**第一句话会让 STT 自动检测**(`transcribe` 不传 `language` 参数,Deepgram 走 `detect_language=true`),检测结果通过 `setSourceLang` 写回 `session.sourceLang`——是 **session(guild)级别的锁定,不是按说话人各自锁定**,之后同一场会话所有人共用这个源语言,不会每句话都重新检测。锁定的同时会往 `session.voiceChannel`(bot 加入的那个语音频道自带的文字聊天)发一条通知,告知用户自动检测并设置成了什么语言,并问一句"检测得对不对,不对就手动 `/lang source:<语言>`"。
-  - **检测结果要先过白名单**(`ports/stt.js` 的 `SUPPORTED_SOURCE_LANGS = ['zh','en','ko','ar']`,跟 `/lang source:` 手动能选的范围是同一个数组,`lang.js` 的 `SOURCE_LANG_CHOICES` 直接从这里派生,不会出现两边不一致):实测极短音频容易检测出离谱结果(0.86 秒的"hello hello"被判成 `cs` 捷克语;说印尼语"Halo halo"被判成 `id`,这个本身没判错但项目没打算支持)。检测结果不在白名单里就**不锁定**——锁进去的话之后整场会话都会用错误语言偏置 STT,把后续所有语音识别成乱码,比"没能自动锁定"严重得多
-  - **检测结果不在白名单里,也要往语音频道发文字通知**("检测失败,请手动设置"),不能什么都不做——最早的版本是纯打日志、不通知用户,会出现"一直卡着不锁定、用户完全不知道发生了什么"这种体验落差,所以两种情况(检测成功/检测到不支持的语言)都会发通知,只是内容不同
-  - **检测失败发完通知要 `return`,不能继续往下走**——中间版本加了通知但漏了这一步,导致刚提示完用户"没检测出你的语言,请手动设置",紧接着还是拿这句话(语言都没确认)去翻译、播报,逻辑前后矛盾。现在检测到不支持的语言时,发完通知直接 `return`,这句话不翻译、不播报;只有真的锁定成功(检测到白名单内的语言)才会继续往下走完整条流水线
+- **`targetLang`**:必须显式设置一次才能开始翻译,没有任何兜底。设置之前,`pipeline.js` 的 `handleSegment` 检测到 `session.targetLang`(或 `sourceLang`,见下)是假值,**跳过翻译**(不浪费翻译额度),改为往 `session.voiceChannel` 发一条**固定文字提示**(内容指向 `/config source:<language> target:<language>`)。这条提示**故意不走语音播报**——最初的实现是合成播报语音,实测遇到过"日志显示播放成功、实际频道里完全没声音"这种静默失败(Discord 连接层面的权限/静音问题,bot 自己感知不到),排查成本高;文字消息走 `voiceChannel.send`,链路短得多,不依赖 TTS 供应商这条链路,失败了控制台也有明确报错,不会静默。这个提示**没有做节流/去重**,每次有人说话且配置还没设完就会发一次,连续说话会连续触发、在频道文字聊天里堆好几条重复消息——刻意先做最简单的版本,如果实测太吵再加节流。
+- **`sourceLang`**:必须靠 `/config source:<语言>`(或单独用 `/lang source:<语言>`)手动设置,没有任何兜底。
 
-两个都是刻意的产品决定,不是疏漏:早期版本两者都有默认值(源=zh、目标=en 或读 `.env` 的 `SOURCE_LANG`/`TRANSLATE_TARGET_LANG`),但这样会悄悄把语言定成一个用户可能压根没注意到、也不是他们想要的选项。现在改成"target 强制显式设置,source 退而求其次靠自动检测兜底"。
+**已移除:source 自动检测**(2026-08-18)。早期版本 `sourceLang` 有"没手动设置就靠第一句话的 STT 自动检测锁定"这条兜底路径(`transcribe` 不传 `language`,Deepgram 走 `detect_language=true`,检测结果过 `SUPPORTED_SOURCE_LANGS` 白名单后写回 `session.sourceLang`)。实测这条路径**准确度太低**——极短音频容易检测出离谱结果(0.86 秒的"hello hello"被判成 `cs` 捷克语),达不到"能信得过、可以悄悄替用户做决定"的门槛,不值得继续维护。已经把这整条自动检测/白名单过滤/通知逻辑从 `pipeline.js` 的 `handleSegment` 里删掉——现在 `sourceLang` 跟 `targetLang` 地位完全对称,都没有默认值、都没有兜底,都必须显式设置一次。
+
+新增 **`/config source:<语言> target:<语言> game:<可选>`** 命令(见 `commands/config.js`),一条命令把 source/target/game 一次设完,取代原来"`/join` 之后必须先 `/lang target:<语言>`"那条提示路径——现在 `/join` 成功后的回复直接指向 `/config`。`/lang`(单独调整 source 或 target)和 `/game`(单独切游戏)两个命令还在,留给配置好之后只想改其中一项的场景;source/target 的 `addChoices` 列表原来各自维护在 `lang.js` 里,现在抽到 `commands/language-choices.js` 共用,避免 `/lang` 和 `/config` 两边各自维护一份走出不一致。
 
 **`pipeline.js` 往语音频道发文字消息的机制**:这是项目里第一次真正实现"bot 发文字消息"(之前只有 slash 命令的 `interaction.reply`,`pipeline.js` 完全没有对外通信能力)。做法是 `join.js` 把 `voiceChannel`(discord.js 的语音频道对象,同时也是合法的文字发送目标——Discord 的语音频道自带文字聊天)一路传给 `startListening` → `createSession`,存进 `session.voiceChannel`;`pipeline.js` 需要通知用户时直接 `session.voiceChannel?.send(...)`,失败了 `.catch()` 打日志、不让通知失败拖垮整个 pipeline。
 
-`/lang` 的 `source`/`target` 的**可选语言列表**(不是默认值,是 `/lang` 命令里能选哪些语言)本身是**两份不同的 `addChoices` 列表**,不对称,是 STT/TTS 依赖的能力不一样导致的:
-- `source`(源语言,只依赖 STT):zh/en/ko/ar 四个,Deepgram STT(Nova-3)这四种都支持,是手动挑的、不是 Nova-3 能力上限(Nova-3 实际支持 60+ 种语言,项目目前只用得上这四个)
-- `target`(目标语言,同时依赖 LLM 翻译和 TTS 播报):**现在覆盖 9 种**(zh/en/ko/ar/fr/ja/de/es/pt),从 `ports/tts.js` 的 `TTS_PROVIDER_BY_LANG` 的 key 动态生成(见 `lang.js`)——这是接入 Azure TTS(见上面"供应商可切换"那节)之后才做到的,早期只有 Deepgram 一个 TTS 供应商时,target 被迫只能开放 zh/en 两个(Deepgram Aura-2 当时只接了英文音色),选了别的语言翻译文字能正常生成但播报会被静默跳过。现在 target 选项数量直接绑定 `TTS_PROVIDER_BY_LANG` 有多少条,不会再出现"选项里能选、但其实播不出声音"这种不一致。
+`/lang`(以及 `/config`)的 `source`/`target` **可选语言列表**(不是默认值,是命令里能选哪些语言)本身是**两份不同的 `addChoices` 列表**,不对称,是 STT/TTS 依赖的能力不一样导致的:
+- `source`(源语言,只依赖 STT):zh/en/ko/ar 四个,Deepgram STT(Nova-3)这四种都支持,是手动挑的、不是 Nova-3 能力上限(Nova-3 实际支持 60+ 种语言,项目目前只用得上这四个)。这四个同时也是 `ports/stt.js` 的 `SUPPORTED_SOURCE_LANGS`——现在这份白名单只用于"手动能选的范围",不再兼职过滤自动检测结果(自动检测已移除)
+- `target`(目标语言,同时依赖 LLM 翻译和 TTS 播报):**现在覆盖 9 种**(zh/en/ko/ar/fr/ja/de/es/pt),从 `ports/tts.js` 的 `TTS_PROVIDER_BY_LANG` 的 key 动态生成——这是接入 Azure TTS(见上面"供应商可切换"那节)之后才做到的,早期只有 Deepgram 一个 TTS 供应商时,target 被迫只能开放 zh/en 两个(Deepgram Aura-2 当时只接了英文音色),选了别的语言翻译文字能正常生成但播报会被静默跳过。现在 target 选项数量直接绑定 `TTS_PROVIDER_BY_LANG` 有多少条,不会再出现"选项里能选、但其实播不出声音"这种不一致。
 
 **已知的语言无关性 bug 修复**:`terminology.js` 里判断"要不要给正则加 `\b` 词边界"的集合,原来叫 `CJK_LANGS`,只列了 zh/ja/ko——但真正的判断依据是"这门语言的文字在不在 JS 正则 `\w`(只认 ASCII 拉丁字母/数字/下划线)覆盖范围内",不是"是否空格分词"。阿拉伯语虽然是空格分词,但阿拉伯文字符同样不在 `\w` 里,加了 `\b` 一样会匹配不到——这两件事只是在中日韩身上恰好同时成立,不能当成通用判断标准。已改名 `NO_WORD_BOUNDARY_LANGS` 并加入 `'ar'`,以后再加不用 `\w` 覆盖的文字系统语言,照这个真正的判断依据加,不要照搬"是否空格分词"这条错误的心智模型。
 
 **历史备注(已解决,留着说明这段决策过程)**:上面提到的"target 只能开放 zh/en"这个限制后来通过接入 Azure Speech TTS 解决了(见"供应商可切换"一节)。项目里还留着切到 Deepgram 之前的旧 TTS adapter(`src/adapter/out/groq/tts.js`,Orpheus 模型,`TTS_SUPPORTED_LANGS = ['en', 'ar']`),但 `TTS_PROVIDER_BY_LANG` 现在没有任何语言路由到它,是没被使用的遗留代码,不是活跃供应商——真正接入并路由到 `ar`/`zh`/`ko`/`pt` 的是 Azure。
 
-**注意**:`STT_PROVIDER=groq` 时 Whisper 返回的语种字段可能是英文全称(如 "english")而非 ISO 码,跟词典的语言 key 对不上,会导致术语检测静默失效(优雅降级——不报错,就是不生效)。当前实际配置的供应商是 Deepgram,已经处理好(显式传 `detect_language=true` 并提取 ISO 码),不受影响——这一点现在也直接关系到 `sourceLang` 自动检测锁定这条新逻辑,`session.sourceLang` 写入的值就是这个 `detected_language`,如果哪天切回 Groq STT 又没处理好这个映射,自动检测锁定的值会是不对的英文全称。
+**注意**:`STT_PROVIDER=groq` 时 Whisper 返回的语种字段可能是英文全称(如 "english")而非 ISO 码,跟词典的语言 key 对不上,会导致术语检测静默失效(优雅降级——不报错,就是不生效)。当前实际配置的供应商是 Deepgram,已经处理好(显式传 `detect_language=true` 并提取 ISO 码),不受影响。
 
 ### 游戏选择:`/game`(子命令列表,不是字符串选项)
 最初 POC 阶段"不做 `/game` 选择机制"这个决定后来改了——`/game` 的每个游戏是一个 `addSubcommand`(而不是一个带 `addChoices` 的字符串选项),打 `/game` 直接弹游戏名列表(`/game whiteout`),不需要先输一个选项名再选值(`/game game:whiteout`)。可选游戏列表维护在 `src/domain/games.js`,新增游戏在这里加一条、再建一个对应的 `src/domain/terminology/<game_id>.json` 词典文件就行;`games.js` 声明了某个 `game_id` 但对应词典文件不存在,`terminology.js` 启动时直接报错,不会静默运行。
@@ -207,7 +206,13 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 3. 实际使用中人工修正积累——产品使用中发现 LLM 翻错的黑话,人工修正后加入词典,是随使用持续增长、越用越准的资产,不是一次性建完的静态内容
 
 ### 当前目标游戏:寒霜启示录(Whiteout Survival)
-末日冰河题材的策略/放置类手游(SLG:联盟、行军集结、基地建设玩法),**不是** FPS/MOBA。词典需要覆盖联盟、行军、资源产出、建筑、英雄技能这类 SLG 特有黑话,跟这个功能最初 POC 阶段随手整理的一批通用 FPS/MOBA 黑话是完全不同的两套词汇——`src/domain/terminology/whiteout.json` 目前是空数组,等针对这个游戏的词条整理好再填。
+末日冰河题材的策略/放置类手游(SLG:联盟、行军集结、基地建设玩法),**不是** FPS/MOBA。词典需要覆盖联盟、行军、资源产出、建筑、英雄技能这类 SLG 特有黑话,跟这个功能最初 POC 阶段随手整理的一批通用 FPS/MOBA 黑话是完全不同的两套词汇——`src/domain/terminology/whiteout.json` 词条已经在陆续填充(英雄名/活动名/科技研究等)。
+
+### 第二个游戏:王者荣耀(Honor of Kings,`hok`)
+`games.js` 里加了第二条 `{ id: 'hok', name: 'Honor of Kings' }`。跟 `whiteout` 一样,`terminology.js`/`keyterms.js` 启动时按 `games.js` 声明的每个游戏去读对应词典文件,文件缺失直接报错——所以配套建了 `src/domain/terminology/hok.json`、`src/domain/keyterms/hok.json` 两个文件才能让 `/game hok`、`/config game:hok` 能用。`terminology/hok.json` 已经陆续填了分路(對抗路/發育路/打野/中路/輔助)和野怪(主宰/龍王/風暴龍王)这类词条,`keyterms/hok.json` 也加了中文分路的关键词;更多 MOBA 黑话(英雄名、装备、技能等)等真正的词典数据来源(见上面「词典数据来源建议」)之后再填。
+
+### keyterms 按"游戏 + 源语言"两层分组,不是只支持中文
+`keyterms/<game_id>.json` 最初的格式是扁平字符串数组,调用方(`voice-listener.js`)用 `session.sourceLang === 'zh'` 手动判断要不要传关键词——加一种源语言支持就要在调用方多写一个条件分支,不可扩展。已经改成跟 `terminology.js` 同一个思路,文件内容按语言码分组(`{ "zh": [...], "en": [...] }`),`getKeyterms(gameId, lang, limit?)` 多了一个 `lang` 参数,直接把 `session.sourceLang` 传进去;这门语言下这个游戏还没维护关键词(或者 `gameId`/`lang` 任一还没配置)都返回空数组,调用方不需要手写判断走哪个分支。`whiteout.json`/`hok.json` 两份数据文件已同步迁移(`whiteout.json` 从 `[]` 改成 `{}`,`hok.json` 的分路关键词包进 `{"zh": [...]}`)。
 
 ---
 
@@ -217,7 +222,7 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 - 状态:Developer Portal 中已设为 Public(公开),已通过验证;实际使用仍限于开发者自建的私人测试 Discord 服务器,尚未走应用商店/App Directory 上架流程
 - 测试服务器:开发者自建的私人测试 Discord 服务器
 - 权限需求(OAuth2 URL Generator 中勾选):
-  - scope:`bot` + `applications.commands`(后者漏勾的话,`/join`/`/leave`/`/lang`/`/game`/`/reset` 这些斜杠命令邀请进服务器后不会生效)
+  - scope:`bot` + `applications.commands`(后者漏勾的话,`/join`/`/leave`/`/lang`/`/game`/`/reset`/`/config` 这些斜杠命令邀请进服务器后不会生效)
   - bot 权限:查看频道、发送消息、连接语音、讲话、使用语音活动
 - 如涉及消息内容解析,需在 Developer Portal 手动开启 "Message Content Intent"
 

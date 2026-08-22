@@ -1,6 +1,5 @@
 import type { VoiceConnection } from '@discordjs/voice';
 import type { VoiceBasedChannel } from 'discord.js';
-import { GAMES } from '../domain/games.js';
 import type { Gender } from '../domain/pitch.js';
 import { resolveTtsProvider } from './ports/tts.js';
 import { createLogger } from '../adapter/out/logger.js';
@@ -37,14 +36,13 @@ export interface Session {
   // 从 0 开始，playback-queue.js 那边的 nextSequence 也约定从 0 开始，两边靠这个
   // 约定对齐，不是这里能校验的。
   playbackSeq: number;
-  // sourceLang/targetLang 都故意不给默认值——不设置的话是 undefined。
-  // targetLang：pipeline.js 的 handleSegment 检测到是假值就直接跳过翻译，播报一条
-  //   提示让用户先 /lang target:<语言>。
-  // sourceLang：/lang source:<语言> 手动设置优先；没手动设置的话，交给 pipeline.js
-  //   用第一句话的 STT 自动检测结果锁定（见 handleSegment 里的自动检测逻辑），检测
-  //   结果直接写回这个字段，之后跟手动设置效果一样，不会每句话都重新检测。
-  // 这是刻意的产品决定：默认悄悄用某个语言，用户可能压根没注意到、也不是他们想要的，
-  // 不如强制显式设置一次（源语言退而求其次靠自动检测兜底，目标语言完全没有兜底）。
+  // sourceLang/targetLang 都故意不给默认值——不设置的话是 undefined，pipeline.js
+  // 的 handleSegment 检测到任意一个是假值就直接跳过翻译，播报一条提示让用户
+  // /config source:<语言> target:<语言>（或分别用 /lang source:/target: 设置）。
+  // sourceLang 曾经有"没手动设置就靠 STT 自动检测结果锁定"的兜底，已经整个移除——
+  // 实测极短音频的语种检测准确度太低，不值得留着当默认路径（历史细节见 CLAUDE.md）。
+  // 现在两者地位完全对称：都没有默认值，都没有兜底，都必须显式设置一次。这是刻意的
+  // 产品决定：默认悄悄用某个语言，用户可能压根没注意到、也不是他们想要的。
   sourceLang: string | undefined;
   targetLang: string | undefined;
   // 跟 targetLang 联动，不单独设置——见下面 setTargetLang。目标语言没设置之前，
@@ -67,7 +65,7 @@ export function createSession(guildId: string, connection: VoiceConnection, voic
     sourceLang: undefined,
     targetLang: undefined,
     ttsProvider: undefined,
-    game: GAMES[0]?.id,
+    game: undefined,
   };
   sessions.set(guildId, session);
   return session;
@@ -81,10 +79,10 @@ export function deleteSession(guildId: string): void {
   sessions.delete(guildId);
 }
 
-// 返回 false 表示这个 guild 现在没在监听（还没 /join）。两种调用来源：
-// 1. /lang source:<语言> 手动设置——lang 由命令的 addChoices 收窄过（zh/en/ko/ar 之一）
-// 2. pipeline.js 的自动检测逻辑——lang 是 Deepgram 返回的 detected_language，不受
-//    addChoices 限制，理论上可能是任何 Deepgram 认识的语言代码
+// 返回 false 表示这个 guild 现在没在监听（还没 /join）。调用来源：/config source:<语言>
+// 或 /lang source:<语言> 手动设置——lang 由命令的 addChoices 收窄过（zh/en/ko/ar 之一）。
+// 曾经还有 pipeline.js 自动检测锁定这条来源（STT 返回的 detected_language），已移除
+// （见上面 Session.sourceLang 的注释），现在只有手动设置这一条路径。
 export function setSourceLang(guildId: string, lang: string): boolean {
   const session = sessions.get(guildId);
   if (!session) return false;
@@ -135,7 +133,7 @@ export function resetSessionSettings(guildId: string): boolean {
   session.sourceLang = undefined;
   session.targetLang = undefined;
   session.ttsProvider = undefined;
-  session.game = GAMES[0]?.id;
+  session.game = undefined;
   logger.info({ guildId }, `guild ${guildId} settings reset (source/target language, TTS provider, game selection back to initial state)`);
   return true;
 }

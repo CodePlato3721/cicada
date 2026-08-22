@@ -21,3 +21,7 @@
 一次性 CLI 脚本（`scripts/*.js`）迁移到 `.ts` 时，不要沿用原来 `__dirname` 反推"项目根目录/兄弟目录"的相对路径写法——`tsc` 编译产物的目录深度（比如 `dist/scripts/`）跟源码所在层级（`scripts/`）不一定一致，原来手写的 `../` 层数在编译后会算错。这类脚本本来就假设"永远从项目根目录（`package.json` 所在目录）用 `npm run` 触发"，改成锚定 `process.cwd()` 来定位项目根目录下的固定路径（比如 `scripts/drafts/`、`src/domain/terminology/`），不随编译产物挪到哪一层而改变。
 
 给 `scripts/`（或任何不在主 `tsconfig.json` 的 `rootDir` 之下）的目录建独立的 `tsconfig.<name>.json` 并用 `"extends": "./tsconfig.json"` 继承主配置时，即便主配置没有显式写 `"types"` 字段（靠 tsc 默认自动扫 `node_modules/@types` 全部引入，这在主配置本身跑的时候确实生效），子配置继承时实测会扫不到 `@types/node`（`process`/`console`/`fetch` 等全局类型报"找不到"）——原因未深究，子配置里显式写 `"types": ["node"]`，不要依赖这个不一致的自动推断行为。
+
+引入一个用 `export { default } from './X'` 转发默认导出的第三方 CJS 包（比如 ioredis）时，这个项目的 `moduleResolution: NodeNext` 配置下 `import X from 'pkg'` 可能解析到整个模块命名空间而不是类本身，报"不可构造"；改用该包自己文档推荐的命名导入方式（ioredis 是 `import { Redis } from 'ioredis'`），不要为了让默认导入编译通过而加类型断言。
+
+测试文件需要在某个模块被 import 触发求值之前先改 `process.env`（比如强制关掉某个依赖真实外部服务的功能）时，不能指望"把赋值语句写在 `import` 声明前面"生效——ES module 的静态 `import` 会被提升到整个文件最前面执行，跟源码里的书写顺序无关。要控制执行顺序，把那个 import 换成动态 `import()`（一条普通语句，按源码顺序执行），赋值放在它前面才真的有效。
