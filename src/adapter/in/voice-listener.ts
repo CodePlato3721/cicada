@@ -22,6 +22,28 @@ import {
 import { createLogger } from '../out/logger.js';
 
 const logger = createLogger('listener');
+const AUDIO_DIAGNOSTICS_ENABLED = process.env.VOICE_AUDIO_DIAGNOSTICS !== 'false';
+const AUDIO_DIAGNOSTICS_INTERVAL_MS = Number(process.env.VOICE_AUDIO_DIAGNOSTICS_INTERVAL_MS ?? 5000);
+
+interface PcmAudioStats {
+  sampleCount: number;
+  sumSquares: number;
+  peak: number;
+}
+
+function updatePcmAudioStats(stats: PcmAudioStats, chunk: Buffer): void {
+  for (let offset = 0; offset + 1 < chunk.length; offset += 2) {
+    const sample = chunk.readInt16LE(offset) / 32768;
+    const abs = Math.abs(sample);
+    stats.sumSquares += sample * sample;
+    stats.sampleCount += 1;
+    if (abs > stats.peak) stats.peak = abs;
+  }
+}
+
+function roundedLevel(value: number): number {
+  return Number(value.toFixed(4));
+}
 
 // 这个说话人 pipeline 自己构造、只有这个文件会读写的字段（vad/opusStream/decoder/
 // forceEndSpeech）——session.ts 的 SpeakerState 只声明了 application 层关心的那几个
@@ -133,6 +155,59 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
   // 判定"这句话结束了"（SpeechEnd/forceEnd）时 close 拿最终转写结果。null 代表当前
   // 没有正在进行中的句子（还没开口，或者上一句已经收尾）。
   let sttStream: SttStream | null = null;
+  const jobQueue: SpeakerJob[] = [];
+  let draining = false;
+  let decodedChunkCount = 0;
+  let decodedBytes = 0;
+  let lastDecodedAt: number | null = null;
+  let audioWindowStartAt = Date.now();
+  let audioWindowChunks = 0;
+  let audioWindowBytes = 0;
+  let audioWindowStats: PcmAudioStats = { sampleCount: 0, sumSquares: 0, peak: 0 };
+
+  const logAudioDiagnostics = (reason: string, force = false) => {
+    if (!AUDIO_DIAGNOSTICS_ENABLED) return;
+    if (!force && Date.now() - audioWindowStartAt < AUDIO_DIAGNOSTICS_INTERVAL_MS) return;
+    if (!force && audioWindowChunks === 0) return;
+
+    const windowMs = Date.now() - audioWindowStartAt;
+    const rms =
+      audioWindowStats.sampleCount > 0 ? Math.sqrt(audioWindowStats.sumSquares / audioWindowStats.sampleCount) : 0;
+    logger.info(
+      {
+        event: 'speaker_audio_diagnostics',
+        guildId,
+        userId,
+        reason,
+        decodedChunksTotal: decodedChunkCount,
+        decodedBytesTotal: decodedBytes,
+        lastDecodedAt,
+        windowMs,
+        windowChunks: audioWindowChunks,
+        windowBytes: audioWindowBytes,
+        rms: roundedLevel(rms),
+        peak: roundedLevel(audioWindowStats.peak),
+        sttStreamOpen: Boolean(sttStream),
+        jobQueueLength: jobQueue.length,
+      },
+      `${userId} audio diagnostics: ${audioWindowChunks} PCM chunk(s), rms ${roundedLevel(rms)}, peak ${roundedLevel(audioWindowStats.peak)}`,
+    );
+
+    audioWindowStartAt = Date.now();
+    audioWindowChunks = 0;
+    audioWindowBytes = 0;
+    audioWindowStats = { sampleCount: 0, sumSquares: 0, peak: 0 };
+  };
+
+  const observeDecodedPcmChunk = (chunk: Buffer) => {
+    decodedChunkCount += 1;
+    decodedBytes += chunk.length;
+    lastDecodedAt = Date.now();
+    audioWindowChunks += 1;
+    audioWindowBytes += chunk.length;
+    updatePcmAudioStats(audioWindowStats, chunk);
+    logAudioDiagnostics('interval');
+  };
 
   // 关掉当前这路 STT 流（如果有）并拿到最终结果；没有正在进行的流就直接给个空结果，
   // 调用方（下面 handleDetectedSegment）后续会按"这段话没识别出文字"处理，不额外分支。
@@ -174,9 +249,6 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
   // 不能让它们并发重叠地跑，不然会互相踩踏，严重时会让底层 ONNX 推理卡死（实测踩过这个坑）。
   // 所以这里用跟 playback-queue.js 一样的"排队"模式，两种任务（音频块 / 强制结束）
   // 都进同一条队列，严格按顺序一个处理完再处理下一个。
-  const jobQueue: SpeakerJob[] = [];
-  let draining = false;
-
   const drainJobQueue = async () => {
     if (draining) return;
     draining = true;
@@ -236,8 +308,33 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
               handleDetectedSegment(segment, sequence, transcribeResult);
             }
           } else if (sttStream) {
+            logger.info(
+              {
+                event: 'speaker_force_end_without_vad_segment',
+                guildId,
+                userId,
+                decodedChunksTotal: decodedChunkCount,
+                decodedBytesTotal: decodedBytes,
+                lastDecodedAt,
+                sttStreamOpen: true,
+              },
+              `${userId} speaking ended without a complete VAD segment, closing open STT stream`,
+            );
             // VAD 没有攒出一段完整语音，但这句话对应的 STT 流还开着——关掉，不留悬空连接。
             await closeSttStream();
+          } else {
+            logger.info(
+              {
+                event: 'speaker_force_end_without_vad_segment',
+                guildId,
+                userId,
+                decodedChunksTotal: decodedChunkCount,
+                decodedBytesTotal: decodedBytes,
+                lastDecodedAt,
+                sttStreamOpen: false,
+              },
+              `${userId} speaking ended before VAD confirmed speech`,
+            );
           }
         }
       } catch (err) {
@@ -249,12 +346,14 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
   };
 
   decoder.on('data', (chunk: Buffer) => {
+    observeDecodedPcmChunk(chunk);
     jobQueue.push({ type: 'chunk', data: chunk });
     drainJobQueue();
   });
 
   // Discord 判定这个人音频流停了（收到 speaking 'end' 事件）时调用，见上面 onSpeakingEnd。
   speakerState.forceEndSpeech = () => {
+    logAudioDiagnostics('speaking_end', true);
     jobQueue.push({ type: 'forceEnd' });
     drainJobQueue();
   };
@@ -263,5 +362,5 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
   decoder.on('error', (err) => logger.error({ err, userId }, `Decoder stream error for ${userId}`));
 
   addSpeaker(guildId, userId, speakerState);
-  logger.info({ userId }, `Started listening to speaker ${userId}`);
+  logger.info({ event: 'speaker_pipeline_started', guildId, userId }, `Started listening to speaker ${userId}`);
 }
