@@ -35,4 +35,5 @@ export const config = {
   // 本质上是运营层面的判断（黑话/版本更新频率变了，随时可能想调），不该改代码重新部署
   // 才能调整。
   redisCacheTtlSeconds: Number(process.env.TRANSLATE_CACHE_TTL_SECONDS) || 3 * 24 * 60 * 60,
+  databaseUrl: required('DATABASE_URL'),
 };

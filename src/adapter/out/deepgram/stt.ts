@@ -82,6 +82,7 @@ class DeepgramSttStream implements SttStream {
   private startedAt = Date.now();
   private audioBytes = 0;
   private chunkCount = 0;
+  private keytermCount = 0;
   private openFailed = false;
   private pushOpenFailureLogged = false;
   private closeSettled = false;
@@ -96,6 +97,7 @@ class DeepgramSttStream implements SttStream {
     }
 
     this.requestedLanguage = options.language;
+    this.keytermCount = options.keyterms?.length ?? 0;
 
     this.closePromise = new Promise<TranscribeResult>((resolve, reject) => {
       this.settleClose = resolve;
@@ -128,8 +130,8 @@ class DeepgramSttStream implements SttStream {
               err,
               provider: 'deepgram',
               model: MODEL,
-              requestedLanguage: this.requestedLanguage,
-              keytermCount: options.keyterms?.length ?? 0,
+            requestedLanguage: this.requestedLanguage,
+              keytermCount: this.keytermCount,
               errorInfo,
             },
             'Deepgram streaming connection failed to open',
@@ -181,6 +183,7 @@ class DeepgramSttStream implements SttStream {
             audioDurationSec: this.audioBytes / (SAMPLE_RATE * CHANNELS * 2),
             audioBytes: this.audioBytes,
             chunkCount: this.chunkCount,
+            keytermCount: this.keytermCount,
             elapsedMs: Date.now() - this.startedAt,
           },
         });

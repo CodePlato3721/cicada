@@ -2,6 +2,7 @@ import type { SynthesizeOptions, VoicesByGender } from '../../../application/por
 import { synthesizeSsml } from './client.js';
 import { createLogger } from '../logger.js';
 import { buildTtsUsageFields } from '../usage-log.js';
+import { recordExternalApiUsage } from '../../../application/billing/billing-service.js';
 
 const logger = createLogger('azure/tts');
 
@@ -84,16 +85,16 @@ export async function synthesize(text: string, { voice, logContext }: Synthesize
 
   const startedAt = Date.now();
   const audio = await synthesizeSsml(ssml);
-  logger.info(
-    buildTtsUsageFields({
-      provider: 'azure',
-      model: voice,
-      text,
-      audio,
-      elapsedMs: Date.now() - startedAt,
-      logContext,
-    }),
-    'External API usage: TTS synthesis',
-  );
+  const usageLog = buildTtsUsageFields({
+    provider: 'azure',
+    model: 'neural',
+    voice,
+    text,
+    audio,
+    elapsedMs: Date.now() - startedAt,
+    logContext,
+  });
+  logger.info(usageLog, 'External API usage: TTS synthesis');
+  await recordExternalApiUsage(usageLog);
   return audio;
 }

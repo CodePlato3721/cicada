@@ -2,6 +2,7 @@ import type { SynthesizeOptions, VoicesByGender } from '../../../application/por
 import { postJsonForAudio } from './client.js';
 import { createLogger } from '../logger.js';
 import { buildTtsUsageFields } from '../usage-log.js';
+import { recordExternalApiUsage } from '../../../application/billing/billing-service.js';
 
 const logger = createLogger('deepgram/tts');
 
@@ -69,16 +70,16 @@ export async function synthesize(
 
   const startedAt = Date.now();
   const audio = await postJsonForAudio(`/speak?${params}`, { text });
-  logger.info(
-    buildTtsUsageFields({
-      provider: 'deepgram',
-      model: voice,
-      text,
-      audio,
-      elapsedMs: Date.now() - startedAt,
-      logContext,
-    }),
-    'External API usage: TTS synthesis',
-  );
+  const usageLog = buildTtsUsageFields({
+    provider: 'deepgram',
+    model: 'aura-2',
+    voice,
+    text,
+    audio,
+    elapsedMs: Date.now() - startedAt,
+    logContext,
+  });
+  logger.info(usageLog, 'External API usage: TTS synthesis');
+  await recordExternalApiUsage(usageLog);
   return audio;
 }
