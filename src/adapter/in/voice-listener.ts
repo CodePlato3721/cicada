@@ -14,8 +14,6 @@ import {
   deleteSession,
   addSpeaker,
   getSpeaker,
-  hasSpeaker,
-  listSpeakers,
   nextPlaybackSequence,
   type SpeakerState,
 } from '../../application/session.js';
@@ -45,12 +43,7 @@ function roundedLevel(value: number): number {
   return Number(value.toFixed(4));
 }
 
-// 这个说话人 pipeline 自己构造、只有这个文件会读写的字段（vad/opusStream/decoder/
-// forceEndSpeech）——session.ts 的 SpeakerState 只声明了 application 层关心的那几个
-// 字段（见 session.ts 顶部注释：这些是"还没转 TS 的 voice-listener.js 构造并挂上去的
-// Discord/VAD 相关字段"），具体类型留给这里（唯一构造它们的地方）自己维护，不回头改
-// session.ts 的 SpeakerState 定义。
-interface ListenerSpeakerState extends SpeakerState {
+interface SpeakerVoiceRuntime {
   vad: StreamingVad;
   opusStream: AudioReceiveStream;
   decoder: opus.Decoder;
@@ -58,6 +51,12 @@ interface ListenerSpeakerState extends SpeakerState {
   // 对象字面量构造时就存在，不能是可选——forceEndSpeech() 会被 onSpeakingEnd 直接调用，
   // 不想每次调用都做一次"存在与否"的可选链判断。
   forceEndSpeech: () => void;
+}
+
+interface GuildVoiceRuntime {
+  connection: VoiceConnection;
+  voiceChannel: VoiceBasedChannel;
+  speakers: Map<string, SpeakerVoiceRuntime>;
 }
 
 // guildId -> { onSpeakingStart, onSpeakingEnd }：Discord 事件监听器的引用，只用于
@@ -68,30 +67,55 @@ interface GuildListeners {
 }
 
 const guildListeners = new Map<string, GuildListeners>();
+const guildVoiceRuntimes = new Map<string, GuildVoiceRuntime>();
+const startingSpeakerPipelines = new Set<string>();
 
-export function startListening(connection: VoiceConnection, voiceChannel: VoiceBasedChannel): void {
+function speakerRuntimeKey(guildId: string, userId: string): string {
+  return `${guildId}:${userId}`;
+}
+
+function getSpeakerVoiceRuntime(guildId: string, userId: string): SpeakerVoiceRuntime | undefined {
+  return guildVoiceRuntimes.get(guildId)?.speakers.get(userId);
+}
+
+function hasSpeakerVoiceRuntime(guildId: string, userId: string): boolean {
+  return guildVoiceRuntimes.get(guildId)?.speakers.has(userId) ?? false;
+}
+
+function isSpeakerPipelineActiveOrStarting(guildId: string, userId: string): boolean {
+  return hasSpeakerVoiceRuntime(guildId, userId) || startingSpeakerPipelines.has(speakerRuntimeKey(guildId, userId));
+}
+
+export async function startListening(connection: VoiceConnection, voiceChannel: VoiceBasedChannel): Promise<void> {
   const guildId = connection.joinConfig.guildId;
 
   // 如果之前有残留状态（比如重复 /join），先清掉再重新开始。
-  stopListening(guildId);
+  await stopListening(guildId);
 
-  createSession(guildId, connection, voiceChannel);
+  await createSession(guildId);
+  guildVoiceRuntimes.set(guildId, { connection, voiceChannel, speakers: new Map() });
 
   const onSpeakingStart = (userId: string) => {
     // 诊断用：Discord 检测到这个人开始说话的时刻，跟 VAD 确认"这是人声"的时刻对比，
     // 能看出是不是网络/@discordjs-voice 这一层就已经有延迟——两条日志各自的 time 字段
     // 就是时间点，不用再在消息文本里手动拼一遍时间。
     logger.info({ userId }, `${userId} Discord detected speaking started`);
-    if (hasSpeaker(guildId, userId)) return; // 已经在监听这个人了
-    createSpeakerPipeline(guildId, connection, userId).catch((err) => {
-      logger.error({ err, userId }, `Failed to initialize listening for speaker ${userId}`);
-    });
+    if (isSpeakerPipelineActiveOrStarting(guildId, userId)) return; // 已经在监听或正在初始化这个人了
+    const key = speakerRuntimeKey(guildId, userId);
+    startingSpeakerPipelines.add(key);
+    createSpeakerPipeline(guildId, connection, voiceChannel, userId)
+      .catch((err) => {
+        logger.error({ err, userId }, `Failed to initialize listening for speaker ${userId}`);
+      })
+      .finally(() => {
+        startingSpeakerPipelines.delete(key);
+      });
   };
 
   // Discord 客户端真正沉默时根本不发音频包，我们自己"数安静帧"的判断永远等不到帧，
   // 只能靠这个连接层面的信号强制收尾，不然一句话会跟很久之后的下一句无限粘在一起。
   const onSpeakingEnd = (userId: string) => {
-    (getSpeaker(guildId, userId) as ListenerSpeakerState | undefined)?.forceEndSpeech();
+    getSpeakerVoiceRuntime(guildId, userId)?.forceEndSpeech();
   };
 
   guildListeners.set(guildId, { onSpeakingStart, onSpeakingEnd });
@@ -101,25 +125,31 @@ export function startListening(connection: VoiceConnection, voiceChannel: VoiceB
   logger.info({ guildId }, `Started auto-listening to voice in guild ${guildId}`);
 }
 
-export function stopListening(guildId: string): void {
-  const session = getSession(guildId);
-  if (!session) return;
+export async function stopListening(guildId: string): Promise<void> {
+  const runtime = guildVoiceRuntimes.get(guildId);
+  if (!runtime && !(await getSession(guildId))) return;
 
   const listeners = guildListeners.get(guildId);
   if (listeners) {
-    session.connection.receiver.speaking.off('start', listeners.onSpeakingStart);
-    session.connection.receiver.speaking.off('end', listeners.onSpeakingEnd);
+    if (runtime) {
+      runtime.connection.receiver.speaking.off('start', listeners.onSpeakingStart);
+      runtime.connection.receiver.speaking.off('end', listeners.onSpeakingEnd);
+    }
     guildListeners.delete(guildId);
   }
 
-  for (const speaker of listSpeakers(guildId)) {
-    const listenerSpeaker = speaker as ListenerSpeakerState;
-    listenerSpeaker.opusStream.destroy();
-    listenerSpeaker.decoder.destroy();
-    listenerSpeaker.vad.destroy().catch(() => {});
+  for (const speakerRuntime of runtime?.speakers.values() ?? []) {
+    speakerRuntime.opusStream.destroy();
+    speakerRuntime.decoder.destroy();
+    speakerRuntime.vad.destroy().catch(() => {});
   }
 
-  deleteSession(guildId);
+  for (const key of Array.from(startingSpeakerPipelines)) {
+    if (key.startsWith(`${guildId}:`)) startingSpeakerPipelines.delete(key);
+  }
+
+  guildVoiceRuntimes.delete(guildId);
+  await deleteSession(guildId);
   clearPlaybackQueue(guildId);
   logger.info({ guildId }, `Stopped listening to guild ${guildId}`);
 }
@@ -127,8 +157,18 @@ export function stopListening(guildId: string): void {
 // jobQueue 里排队的两种任务：一块新到的音频（chunk）或者"强制结束这句话"（forceEnd）。
 type SpeakerJob = { type: 'chunk'; data: Buffer } | { type: 'forceEnd' };
 
-async function createSpeakerPipeline(guildId: string, connection: VoiceConnection, userId: string): Promise<void> {
+async function createSpeakerPipeline(
+  guildId: string,
+  connection: VoiceConnection,
+  voiceChannel: VoiceBasedChannel,
+  userId: string,
+): Promise<void> {
   const vad = await StreamingVad.create();
+  const guildRuntime = guildVoiceRuntimes.get(guildId);
+  if (!guildRuntime) {
+    await vad.destroy();
+    return;
+  }
 
   // Manual：不自动结束订阅，我们自己控制生命周期（/leave 时统一清理）。
   // "一句话说完没"完全交给上面的 VAD 实时判断，不再依赖 Discord 自带的静音计时。
@@ -139,15 +179,18 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
 
   opusStream.pipe(decoder);
 
-  // lastTranscript：这个人上一句话识别出来的文字，作为下一句 STT 的上下文提示，
-  // 帮模型在同音词/歧义词之间做出更符合语境的选择（比如"校车"和"笑车"读音完全一样）。
-  // forceEndSpeech 先占位，下面 jobQueue/drainJobQueue 定义好之后立即被替换成真正实现
-  // （跟原来的构造顺序一致：先有 speakerState，再补上依赖 jobQueue 闭包的那个字段）。
-  const speakerState: ListenerSpeakerState = {
+  let speakerState = await getSpeaker(guildId, userId);
+  if (!speakerState) {
+    speakerState = {
+      lastTranscript: '',
+    };
+    await addSpeaker(guildId, userId, speakerState);
+  }
+
+  const speakerRuntime: SpeakerVoiceRuntime = {
     vad,
     opusStream,
     decoder,
-    lastTranscript: '',
     forceEndSpeech: () => {},
   };
 
@@ -240,7 +283,7 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
       logger.error({ err, userId }, `Failed to save backup input recording for ${userId}`);
     });
 
-    handleSegment(guildId, connection, userId, segment, speakerState, sequence, transcribeResult).catch((err) => {
+    handleSegment(guildId, connection, voiceChannel, userId, segment, speakerState, sequence, transcribeResult).catch((err) => {
       logger.error({ err, userId, sequence }, `Failed to process a voice segment for ${userId}`);
     });
   };
@@ -257,13 +300,13 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
       const job = jobQueue.shift()!;
       try {
         if (job.type === 'chunk') {
+          const sessionForStt = sttStream ? undefined : await getSession(guildId);
           const segments = await vad.feed(job.data, {
             onSpeechStart: () => {
               logger.info({ userId }, `${userId} VAD confirmed this is speech, starting to count a sentence`);
               if (!sttStream) {
-                const session = getSession(guildId);
                 sttStream = openStream({
-                  language: session?.sourceLang,
+                  language: sessionForStt?.sourceLang,
                   prompt: speakerState.lastTranscript,
                   // keyterm 是开连接时的 query 参数，连上之后不能中途改（这个项目用的
                   // 是 Deepgram nova-3 标准流式接口，没有连接期间动态更新关键词的能力，
@@ -271,7 +314,7 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
                   // 按"游戏 + 源语言"两层分组，不再只支持中文——直接把 session.sourceLang
                   // 传给 getKeyterms，这门语言下这个游戏还没维护关键词（或者 sourceLang/
                   // game 任一还没配置）都会拿到空数组，不需要在这里手写判断走哪个分支。
-                  keyterms: getKeyterms(session?.game, session?.sourceLang),
+                  keyterms: getKeyterms(sessionForStt?.game, sessionForStt?.sourceLang),
                 });
               }
             },
@@ -284,7 +327,7 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
             // 就是它在整场会话里的实际先后顺序，不能等下面 closeSttStream() 这个异步
             // 网络调用完成之后再分配，那样分配到的是"STT 响应回来的顺序"，不同说话人
             // 的 STT 请求耗时不一，起不到重排的作用（见 playback-queue.js 顶部注释）。
-            const sequence = nextPlaybackSequence(guildId);
+            const sequence = await nextPlaybackSequence(guildId);
             const transcribeResult = await closeSttStream();
             if (sequence === null) {
               // 理论上不会发生：这个说话人的处理流水线只会在 startListening 里
@@ -300,7 +343,7 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
           const segment = vad.forceEnd();
           if (segment) {
             logger.info({ userId }, `${userId} audio stream paused, force-ending this sentence`);
-            const sequence = nextPlaybackSequence(guildId);
+            const sequence = await nextPlaybackSequence(guildId);
             const transcribeResult = await closeSttStream();
             if (sequence === null) {
               logger.error({ userId }, `${userId} failed to allocate a playback sequence — guild session missing unexpectedly`);
@@ -352,7 +395,7 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
   });
 
   // Discord 判定这个人音频流停了（收到 speaking 'end' 事件）时调用，见上面 onSpeakingEnd。
-  speakerState.forceEndSpeech = () => {
+  speakerRuntime.forceEndSpeech = () => {
     logAudioDiagnostics('speaking_end', true);
     jobQueue.push({ type: 'forceEnd' });
     drainJobQueue();
@@ -361,6 +404,9 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
   opusStream.on('error', (err) => logger.error({ err, userId }, `Opus stream error for ${userId}`));
   decoder.on('error', (err) => logger.error({ err, userId }, `Decoder stream error for ${userId}`));
 
-  addSpeaker(guildId, userId, speakerState);
-  logger.info({ event: 'speaker_pipeline_started', guildId, userId }, `Started listening to speaker ${userId}`);
+  guildRuntime.speakers.set(userId, speakerRuntime);
+  logger.info(
+    { event: 'speaker_pipeline_started', guildId, userId, who: speakerState.label },
+    `Started listening to speaker ${userId}`,
+  );
 }

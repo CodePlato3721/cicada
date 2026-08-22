@@ -46,17 +46,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const gameId = interaction.options.getString('game');
 
   // guildId 必然存在，见 game.js 同样的 ! 断言惯例。
-  const session = getSession(interaction.guildId!);
+  const session = await getSession(interaction.guildId!);
   if (!session) {
     await interaction.reply({ content: "I haven't joined a voice channel yet — use /join first.", ephemeral: true });
     return;
   }
 
-  setSourceLang(interaction.guildId!, source);
-  setTargetLang(interaction.guildId!, target);
-  if (gameId) setGame(interaction.guildId!, gameId);
+  await setSourceLang(interaction.guildId!, source);
+  await setTargetLang(interaction.guildId!, target);
+  if (gameId) await setGame(interaction.guildId!, gameId);
 
-  const game = session.game ? GAMES.find((g) => g.id === session.game) : undefined;
+  const game = gameId ? GAMES.find((g) => g.id === gameId) : session.game ? GAMES.find((g) => g.id === session.game) : undefined;
   const gameLabel = game ? game.name : 'none (general translation)';
   await interaction.reply({
     content: `Configured - source: ${source}, target: ${target}, game: ${gameLabel}. Translation is now active.`,
