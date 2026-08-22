@@ -33,5 +33,6 @@ export interface BillingDecision {
   allowed: boolean;
   reason?: string;
   userMessage?: string;
+  warningMessage?: string;
   planId?: BillingPlanId;
 }

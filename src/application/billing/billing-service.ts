@@ -5,6 +5,8 @@ import { calculateEstimatedCostUsd } from './cost-calculator.js';
 import type { BillingDecision, ExternalApiUsage } from './types.js';
 
 const logger = createLogger('billing');
+const LOW_VOICE_SECONDS_REMAINING_WARNING = 5 * 60;
+const LOW_TEXT_CHARS_REMAINING_WARNING = 500;
 
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
@@ -64,6 +66,8 @@ export async function checkBillingAllowed({
       };
     }
 
+    let warningMessage: string | undefined;
+
     if (plan.dailyVoiceSecondsLimit !== null || plan.dailyTextCharsLimit !== null) {
       const usage = await client.query<{ voice_seconds: string; text_chars: string }>(
         `
@@ -92,9 +96,22 @@ export async function checkBillingAllowed({
           userMessage: `This server has reached the Free plan daily text translation limit (${plan.dailyTextCharsLimit} characters/day).`,
         };
       }
+      if (plan.dailyVoiceSecondsLimit !== null) {
+        const remainingSeconds = Math.max(plan.dailyVoiceSecondsLimit - nextVoiceSeconds, 0);
+        if (remainingSeconds <= LOW_VOICE_SECONDS_REMAINING_WARNING) {
+          warningMessage = `This server has about ${Math.ceil(remainingSeconds / 60)} minute(s) of Free plan voice translation left today.`;
+        }
+      }
+      if (plan.dailyTextCharsLimit !== null) {
+        const remainingChars = Math.max(plan.dailyTextCharsLimit - nextTextChars, 0);
+        if (remainingChars <= LOW_TEXT_CHARS_REMAINING_WARNING) {
+          const textWarning = `This server has ${remainingChars} Free plan text character(s) left today.`;
+          warningMessage = warningMessage ? `${warningMessage} ${textWarning}` : textWarning;
+        }
+      }
     }
 
-    return { allowed: true, planId: account.planId };
+    return { allowed: true, planId: account.planId, warningMessage };
   } finally {
     client.release();
   }
