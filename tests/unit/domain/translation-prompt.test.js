@@ -13,22 +13,23 @@ test('buildTranslationMessages：返回 system + user 两条消息，user 内容
   assert.equal(messages[1].content, '<source>\nHello world\n</source>');
 });
 
-test('buildTranslationMessages：system prompt 里点出目标语言的英文名', () => {
+test('buildTranslationMessages：system prompt 直接使用 target 配置值', () => {
   const messages = buildTranslationMessages('Hello', 'zh');
-  assert.ok(messages[0].content.includes('Chinese'));
+  assert.ok(messages[0].content.includes('to zh'));
+  assert.ok(!messages[0].content.includes('Chinese'));
 });
 
-test('buildTranslationMessages：未登记的语言代码原样透传，不报错', () => {
+test('buildTranslationMessages：任意语言代码原样透传，不报错', () => {
   const messages = buildTranslationMessages('Hello', 'xx');
-  assert.ok(messages[0].content.includes('into xx'));
+  assert.ok(messages[0].content.includes('to xx'));
 });
 
 test('buildTranslationMessages：文本包含 <keep> 标签时追加保留说明；没有则不追加', () => {
   const withKeep = buildTranslationMessages('<keep>茉莉</keep> joined the alliance', 'en');
   const withoutKeep = buildTranslationMessages('Molly joined the alliance', 'en');
 
-  assert.ok(withKeep[0].content.includes('already wrapped in <keep>'));
-  assert.ok(withKeep[0].content.includes('passed through unchanged'));
-  assert.ok(!withoutKeep[0].content.includes('already wrapped in <keep>'));
+  assert.ok(withKeep[0].content.includes('Text inside <keep> tags is already translated to en'));
+  assert.ok(withKeep[0].content.includes('keeping <keep> tags'));
+  assert.ok(!withoutKeep[0].content.includes('Text inside <keep> tags'));
   assert.ok(withoutKeep[0].content.includes('No explanations, no quotes, no tags, nothing else.'));
 });
