@@ -103,7 +103,6 @@ class DeepgramSttStream implements SttStream {
       this.settleClose = resolve;
       this.failClose = reject;
     });
-    this.closePromise.catch(() => undefined);
 
     // 浏览器/Node 全局 WebSocket 的标准 API 不支持自定义 header，Deepgram 官方文档
     // 给的替代方案是把 API key 通过 Sec-WebSocket-Protocol 子协议传过去（第二个参数
@@ -143,7 +142,6 @@ class DeepgramSttStream implements SttStream {
         { once: true },
       );
     });
-    this.opened.catch(() => undefined);
 
     this.ws.addEventListener('message', (event: MessageEvent) => {
       let data: DeepgramStreamingMessage;
@@ -189,7 +187,7 @@ class DeepgramSttStream implements SttStream {
             elapsedMs: Date.now() - this.startedAt,
           },
         });
-      } else if (!event.wasClean && !this.openFailed) {
+      } else if (!event.wasClean) {
         // 还没主动 close() 就断了——直接判定这句话失败，不重连/不重试（TASK-01 范围）。
         const err = new Error(`Deepgram streaming connection closed unexpectedly (code ${event.code}, reason: ${event.reason || 'none'})`);
         logger.error(
