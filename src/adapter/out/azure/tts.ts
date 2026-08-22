@@ -1,5 +1,9 @@
 import type { SynthesizeOptions, VoicesByGender } from '../../../application/ports/tts.js';
 import { synthesizeSsml } from './client.js';
+import { createLogger } from '../logger.js';
+import { buildTtsUsageFields } from '../usage-log.js';
+
+const logger = createLogger('azure/tts');
 
 // Azure Speech 支持的语言范围比 Deepgram Aura-2 广得多，这里只列出 ports/tts.js 的
 // TTS_PROVIDER_BY_LANG 实际路由过来的语言（zh/ko/pt/ar）对应的音色，不是 Azure 全部
@@ -70,7 +74,7 @@ function escapeXml(text: string): string {
 // 这个签名里没有 targetLang 参数——不像 deepgram/groq 那两个 adapter，Azure 这边语言
 // 完全由 voice 名字决定，不需要额外传 targetLang；ports/tts.js 统一调用时无论传不传
 // 都不会出错（这个函数直接忽略多余的参数）。
-export async function synthesize(text: string, { voice }: SynthesizeOptions): Promise<Buffer> {
+export async function synthesize(text: string, { voice, logContext }: SynthesizeOptions): Promise<Buffer> {
   if (!VALID_VOICES.includes(voice)) {
     throw new Error(`voice must be one of: ${VALID_VOICES.join(', ')}`);
   }
@@ -78,5 +82,18 @@ export async function synthesize(text: string, { voice }: SynthesizeOptions): Pr
   const locale = localeFromVoiceName(voice);
   const ssml = `<speak version='1.0' xml:lang='${locale}'><voice xml:lang='${locale}' name='${voice}'>${escapeXml(text)}</voice></speak>`;
 
-  return synthesizeSsml(ssml);
+  const startedAt = Date.now();
+  const audio = await synthesizeSsml(ssml);
+  logger.info(
+    buildTtsUsageFields({
+      provider: 'azure',
+      model: voice,
+      text,
+      audio,
+      elapsedMs: Date.now() - startedAt,
+      logContext,
+    }),
+    'External API usage: TTS synthesis',
+  );
+  return audio;
 }

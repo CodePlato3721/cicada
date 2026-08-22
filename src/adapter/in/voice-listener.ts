@@ -195,10 +195,11 @@ async function createSpeakerPipeline(guildId: string, connection: VoiceConnectio
                   prompt: speakerState.lastTranscript,
                   // keyterm 是开连接时的 query 参数，连上之后不能中途改（这个项目用的
                   // 是 Deepgram nova-3 标准流式接口，没有连接期间动态更新关键词的能力，
-                  // 那是更新的 Flux 模型才有的 Configure 消息机制）。源语言还没锁定
-                  // （第一句话，自动检测中）或者锁定的不是中文，都不附带关键词——
-                  // getKeyterms 在 gameId 缺失时也会返回空数组，不需要额外判空。
-                  keyterms: session?.sourceLang === 'zh' ? getKeyterms(session.game) : undefined,
+                  // 那是更新的 Flux 模型才有的 Configure 消息机制）。keyterms.js 现在
+                  // 按"游戏 + 源语言"两层分组，不再只支持中文——直接把 session.sourceLang
+                  // 传给 getKeyterms，这门语言下这个游戏还没维护关键词（或者 sourceLang/
+                  // game 任一还没配置）都会拿到空数组，不需要在这里手写判断走哪个分支。
+                  keyterms: getKeyterms(session?.game, session?.sourceLang),
                 });
               }
             },

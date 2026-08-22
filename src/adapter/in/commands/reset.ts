@@ -15,8 +15,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await interaction.reply({
     content:
-      'Settings cleared. Source language will auto-detect again from the next thing said; ' +
-      'target language must be set again with `/lang target:<language>` before I can translate.',
+      'Settings cleared. Source and target language must both be set again with ' +
+      '`/config source:<language> target:<language>` before I can translate.',
     ephemeral: true,
   });
 }

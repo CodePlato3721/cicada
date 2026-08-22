@@ -5,11 +5,11 @@ import { applyTerminology, stripKeepTags } from '../domain/terminology.js';
 import { lookupTranslationCache } from './translate-cache-lookup.js';
 import { saveOutputRecording } from '../adapter/out/recordings.js';
 import { setCachedTranslation } from '../adapter/out/redis/translate-cache.js';
-import { SUPPORTED_SOURCE_LANGS, type TranscribeResult } from './ports/stt.js';
+import type { TranscribeResult } from './ports/stt.js';
 import { translate } from './ports/translate.js';
 import { synthesize } from './ports/tts.js';
 import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
-import { getSession, listSpeakers, setSourceLang, type Session, type SpeakerState } from './session.js';
+import { getSession, listSpeakers, type Session, type SpeakerState } from './session.js';
 import { assignVoice } from './voice-assignment.js';
 import { createLogger } from '../adapter/out/logger.js';
 
@@ -23,19 +23,25 @@ const logger = createLogger('pipeline');
 // 多供应商场景下用这个覆盖要自己确认当前目标语言实际会路由到哪个供应商。
 const TTS_VOICE_OVERRIDE = process.env.TTS_VOICE || undefined;
 
-// 目标语言还没设置时发的固定文字提示——改用文字而不是语音播报：语音播报依赖 TTS
-// 供应商这条链路本身（会经过 synthesize/播放队列，任何一环出问题都可能又变成
+// source/target 语言还没配置齐时发的固定文字提示——改用文字而不是语音播报：语音播报
+// 依赖 TTS 供应商这条链路本身（会经过 synthesize/播放队列，任何一环出问题都可能又变成
 // "静默失败、听不到声音也看不出哪里错了"，之前已经踩过一次这个坑），文字消息走
 // session.voiceChannel.send，不依赖 TTS，链路更短、失败了控制台也看得到明确报错。
-// 这里可以直接把命令语法写全（比如反引号包住的 /lang target:<language>）——文字
-// 不用考虑"念出来怪不怪"这个语音场景才有的限制。
-const TARGET_LANG_NOT_SET_MESSAGE =
-  "⚠️ I can't translate yet — set a target language first with `/lang target:<language>`.";
+// 这里可以直接把命令语法写全（比如反引号包住的 /config source:<language> target:<language>）——
+// 文字不用考虑"念出来怪不怪"这个语音场景才有的限制。
+//
+// source 曾经有"不设置就靠 STT 自动检测锁定"的兜底（第一句话检测、结果落进
+// SUPPORTED_SOURCE_LANGS 白名单才锁定），已经整个删掉——实测极短音频的语种检测准确度
+// 太低（比如 0.86 秒的"hello hello"被判成 cs/捷克语），不值得留着当默认路径。现在
+// source 跟 target 地位对称：都没有默认值，都必须显式设置，`/config` 一条命令把两个
+// 一起设完，是取代原来"必须先 /lang target:<language>"那条路径的新入口。
+const CONFIG_NOT_SET_MESSAGE =
+  "⚠️ I can't translate yet — set source and target language first with `/config source:<language> target:<language>`.";
 
-async function sendTargetLangNotSetReminder(session: Session | undefined): Promise<void> {
+async function sendConfigNotSetReminder(session: Session | undefined): Promise<void> {
   await session!.voiceChannel
-    ?.send(TARGET_LANG_NOT_SET_MESSAGE)
-    .catch((err: unknown) => logger.error({ err }, 'Failed to send target-language-not-set reminder'));
+    ?.send(CONFIG_NOT_SET_MESSAGE)
+    .catch((err: unknown) => logger.error({ err }, 'Failed to send config-not-set reminder'));
 }
 
 // 说话人第一次开口时判断性别，纯声学特征、跟 TTS 供应商无关，只需要判一次、
@@ -143,24 +149,17 @@ export async function handleSegment(
     }
 
     const session = getSession(guildId);
-    if (!session?.targetLang) {
-      // 目标语言从没设置过（没有默认值，见 session.js）——不翻译、不消耗 STT/翻译额度，
-      // 每次说话都直接发一条固定文字提示，逼着用户先 /lang target:<语言> 一次。
-      logger.info({ ...ctx, who }, `${who} target language not set, skipping STT/translate, sending text reminder`);
-      await sendTargetLangNotSetReminder(session);
+    if (!session?.sourceLang || !session?.targetLang) {
+      // source/target 任意一个没设置过（都没有默认值，也都没有自动检测兜底，见
+      // session.js）——不翻译、不消耗翻译额度，每次说话都直接发一条固定文字提示，
+      // 逼着用户先 /config source:<语言> target:<语言> 一次。
+      logger.info({ ...ctx, who }, `${who} source/target language not fully configured, skipping translate, sending text reminder`);
+      await sendConfigNotSetReminder(session);
       return;
     }
 
     const stamp = Date.now();
-
-    // 源语言没手动设置过（session.sourceLang 是假值）就交给 STT 自动检测——记下这次调用
-    // 之前是不是这个状态，STT 返回之后好判断这次是不是"第一句话，需要锁定检测结果"。
-    const wasSourceLangUnset = !session.sourceLang;
-    if (session.sourceLang) {
-      logger.info({ ...ctx, who, sourceLang: session.sourceLang }, `${who} source language: ${session.sourceLang}`);
-    } else {
-      logger.info({ ...ctx, who }, `${who} source language not set yet, letting STT auto-detect for this call`);
-    }
+    logger.info({ ...ctx, who, sourceLang: session.sourceLang }, `${who} source language: ${session.sourceLang}`);
 
     const targetLang = session.targetLang;
     const provider = session.ttsProvider; // 跟 targetLang 一起在 setTargetLang 里联动设置，见 session.js
@@ -172,50 +171,23 @@ export async function handleSegment(
     // 拿到手的最终转写结果，wav 落盘（备份用途）搬到了 TASK-02，这里不落盘。
     const result = transcribeResult;
     logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] using streamed STT result`);
-
-    // 这次是自动检测、且真的检测出语种了——锁定进 session（跟 /lang source:<语言> 手动
-    // 设置效果一样，走同一个 setSourceLang，之后所有人共用这个源语言，不用每句话都重新
-    // 检测）。是 session 级别的锁定，不是按说话人各自锁定——跟 sourceLang/targetLang
-    // 本来就是整个 guild 共享一份设置这件事保持一致。
-    //
-    // 只信 SUPPORTED_SOURCE_LANGS 范围内的检测结果——极短音频（比如就一两个词）的语种
-    // 检测本身不可靠，实测出现过"hello hello"（0.86 秒）被 Deepgram 判成 cs（捷克语）
-    // 这种明显错误的结果，也出现过说印尼语被判成 id（不在支持范围内，本身没错，但项目
-    // 没打算支持这个语言）。检测结果不在这个白名单里就不锁定——真锁进去的话，之后整场
-    // 会话都会按这个错误语言去偏置 STT，会把后续所有语音都识别成乱码，比"没能自动锁定"
-    // 严重得多。
-    //
-    // 但不锁定不等于什么都不说——一开始这里是纯打日志、不通知用户，结果出现过"检测失败
-    // 后一直卡着不锁定，用户完全不知道发生了什么、也不知道要自己去 /lang source: 设置"
-    // 这种体验落差。现在改成主动发文字提示，跟"target 语言未设置"那条提示是同一个思路：
-    // 宁可可能连续提示几次，也不要让用户在没有任何反馈的情况下自己纳闷。
-    if (wasSourceLangUnset && result.language) {
-      if (!SUPPORTED_SOURCE_LANGS.includes(result.language)) {
-        logger.info(
-          { ...ctx, who, detectedLang: result.language },
-          `${who} auto-detected source language: "${result.language}", not in supported range (${SUPPORTED_SOURCE_LANGS.join('/')}), prompting user to set manually`,
-        );
-        session.voiceChannel
-          ?.send(
-            `⚠️ Couldn't auto-detect your language (got "${result.language}", which isn't supported). ` +
-              'Please set it manually with `/lang source:<language>`.',
-          )
-          .catch((err: unknown) => logger.error({ err }, 'Failed to send source-language-detection-failed notice'));
-        // 源语言没能确认下来，这段话的翻译/播报就没有意义——不往下走了。之前这里没有
-        // return，导致刚提示完用户"没检测出你的语言、请手动设置"，紧接着又拿这句话
-        // （语言都没确认）翻译播报出来，逻辑上前后矛盾，体验也很奇怪。
-        return;
-      } else {
-        setSourceLang(guildId, result.language);
-        logger.info({ ...ctx, who, detectedLang: result.language }, `${who} auto-detected source language: ${result.language}, locked in`);
-        session.voiceChannel
-          ?.send(
-            `🌐 Detected and set the source language to **${result.language}** based on the first thing said. ` +
-              'Is that correct? If not, set it manually with `/lang source:<language>`.',
-          )
-          .catch((err: unknown) => logger.error({ err }, 'Failed to send auto-detected-language notice'));
-      }
-    }
+    logger.info(
+      {
+        event: 'external_api_usage',
+        stage: 'stt',
+        ...ctx,
+        who,
+        sourceLang: session.sourceLang,
+        provider: result.usage?.provider,
+        model: result.usage?.model,
+        elapsedMs: result.usage?.elapsedMs,
+        audioDurationSec: monoFloat32.length / 16000,
+        providerAudioDurationSec: result.usage?.audioDurationSec,
+        audioBytes: result.usage?.audioBytes,
+        chunkCount: result.usage?.chunkCount,
+      },
+      'External API usage: STT transcription',
+    );
 
     const transcriptText = result.text?.trim();
     if (!transcriptText) {
@@ -234,6 +206,22 @@ export async function handleSegment(
       gameId: session.game,
       transcriptText,
     });
+    logger.info(
+      {
+        event: 'translation_cache_lookup',
+        ...ctx,
+        who,
+        sourceLang: session.sourceLang,
+        targetLang,
+        gameId: session.game ?? null,
+        cacheResult: cacheLookup.kind,
+        cacheKey: 'cacheKey' in cacheLookup ? cacheLookup.cacheKey : undefined,
+        transcriptTextChars: transcriptText.length,
+        normalizedTextChars: 'normalizedText' in cacheLookup ? cacheLookup.normalizedText.length : undefined,
+        cachedTranslationChars: cacheLookup.kind === 'hit' ? cacheLookup.translatedText.length : undefined,
+      },
+      'Translation cache lookup',
+    );
 
     if (cacheLookup.kind === 'empty-after-normalize') {
       // 规范化完之后是空字符串，代表这句话是纯语气词/噪音——不翻译，没有输出，
@@ -273,7 +261,9 @@ export async function handleSegment(
         logger.info({ ...ctx, who, hitCount, preparedText }, `${who} matched ${hitCount} term(s), sending to translation after preprocessing: "${preparedText}"`);
       }
 
-      const rawTranslatedText = await translate(preparedText, targetLang);
+      const rawTranslatedText = await translate(preparedText, targetLang, {
+        logContext: { ...ctx, who, sourceLang: session.sourceLang, targetLang },
+      });
       logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] translation returned`);
       if (hitCount > 0) {
         logger.info({ ...ctx, who, rawTranslatedText }, `${who} raw translation output (for verification, includes <keep> tags): "${rawTranslatedText}"`);
@@ -307,7 +297,12 @@ export async function handleSegment(
     }
 
     const voice = TTS_VOICE_OVERRIDE ?? resolveSpeakerVoice(guildId, speakerState, provider, targetLang);
-    const ttsWav = await synthesize(translatedText, { voice, targetLang, provider });
+    const ttsWav = await synthesize(translatedText, {
+      voice,
+      targetLang,
+      provider,
+      logContext: { ...ctx, who, sourceLang: session.sourceLang, targetLang },
+    });
     logger.info(
       { ...ctx, who, elapsedMs: Date.now() - t0, provider, voice },
       `${who} [${elapsed()}] TTS returned (provider: ${provider}, voice: ${voice}), entering playback queue`,

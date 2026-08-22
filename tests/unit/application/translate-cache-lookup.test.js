@@ -39,7 +39,7 @@ test('lookupTranslationCache：非中文源语言（含 undefined）返回 not-a
 
 test('lookupTranslationCache：中文规范化后是空字符串（纯语气词）返回 empty-after-normalize', async () => {
   const result = await lookupTranslationCache({ sourceLang: 'zh', targetLang: 'en', gameId: 'whiteout', transcriptText: '啊啊啊' });
-  assert.deepEqual(result, { kind: 'empty-after-normalize' });
+  assert.deepEqual(result, { kind: 'empty-after-normalize', normalizedText: '' });
 });
 
 test('lookupTranslationCache：中文有实际内容、缓存未命中（测试环境没配 REDIS_URL）返回 miss，带规范化后文本和对应 cacheKey', async () => {
@@ -47,6 +47,7 @@ test('lookupTranslationCache：中文有实际内容、缓存未命中（测试�
 
   assert.equal(result.kind, 'miss');
   assert.equal(result.textForTranslation, '我要去打野');
+  assert.equal(result.normalizedText, '我要去打野');
   assert.equal(
     result.cacheKey,
     buildTranslateCacheKey({ gameId: 'whiteout', srcLang: 'zh', tgtLang: 'en', normalizedText: '我要去打野' }),
@@ -57,6 +58,7 @@ test('lookupTranslationCache：gameId 缺失时用空字符串占位，跟直接
   const result = await lookupTranslationCache({ sourceLang: 'zh', targetLang: 'en', gameId: undefined, transcriptText: '你好' });
 
   assert.equal(result.kind, 'miss');
+  assert.equal(result.normalizedText, '你好');
   assert.equal(
     result.cacheKey,
     buildTranslateCacheKey({ gameId: '', srcLang: 'zh', tgtLang: 'en', normalizedText: '你好' }),

@@ -1,0 +1,58 @@
+[
+  {
+    "term_id": "ROLE_CLASH_LANE",
+    "translations": {
+      "en": "Clash Lane",
+      "zh": "對抗路"
+    }
+  },
+  {
+    "term_id": "ROLE_FARM_LANE",
+    "translations": {
+      "en": "Farm Lane",
+      "zh": "發育路"
+    }
+  },
+  {
+    "term_id": "ROLE_JUNGLING",
+    "translations": {
+      "en": "Jungling",
+      "zh": "打野"
+    }
+  },
+  {
+    "term_id": "ROLE_MID_LANE",
+    "translations": {
+      "en": "Mid Lane",
+      "zh": "中路"
+    }
+  },
+  {
+    "term_id": "ROLE_ROAMING",
+    "translations": {
+      "en": "Roaming",
+      "zh": "輔助"
+    }
+  },
+  {
+    "term_id": "MONSTER_OVERLORD",
+    "translations": {
+      "en": "Overlord",
+      "zh": "主宰"
+    }
+  },
+  {
+    "term_id": "MONSTER_TYRANT",
+    "translations": {
+      "en": "Tyrant",
+      "zh": "龍王"
+    }
+  },
+  {
+    "term_id": "MONSTER_TEMPEST_DRAGON",
+    "translations": {
+      "en": "Tempest Dragon",
+      "zh": "風暴龍王"
+    }
+  }
+]

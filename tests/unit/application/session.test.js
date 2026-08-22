@@ -26,14 +26,14 @@ function freshGuildId() {
   return `guild-${Math.random().toString(36).slice(2)}`;
 }
 
-test('createSession：初始状态没有默认的源/目标语言，游戏默认第一项（whiteout）', () => {
+test('createSession：初始状态没有默认的源/目标语言，也没有默认游戏', () => {
   const guildId = freshGuildId();
   const session = createSession(guildId, FAKE_CONNECTION, FAKE_VOICE_CHANNEL);
 
   assert.equal(session.sourceLang, undefined);
   assert.equal(session.targetLang, undefined);
   assert.equal(session.ttsProvider, undefined);
-  assert.equal(session.game, 'whiteout');
+  assert.equal(session.game, undefined);
   assert.equal(session.playbackSeq, 0);
   assert.equal(getSession(guildId), session);
 });
@@ -87,7 +87,7 @@ test('resetSessionSettings：恢复成 createSession 时的初始状态，不动
   assert.equal(session.sourceLang, undefined);
   assert.equal(session.targetLang, undefined);
   assert.equal(session.ttsProvider, undefined);
-  assert.equal(session.game, 'whiteout');
+  assert.equal(session.game, undefined);
   assert.equal(hasSpeaker(guildId, 'user-1'), true); // speakers 不受 reset 影响
 });
 

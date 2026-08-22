@@ -25,7 +25,7 @@ Discord 实时语音翻译 Bot。`/join` 后自动监听频道语音,本地 VAD 
 
 1. `npm install`
 2. 复制 `.env.example` 为 `.env`,按注释填好各项(至少要有 `DISCORD_BOT_TOKEN`、`DISCORD_CLIENT_ID`、一个翻译/STT 供应商的 API Key;TTS 按目标语言路由到 Deepgram/Azure,想用哪个目标语言就填对应供应商的 key,见 `.env.example` 里的说明)
-3. `npm run deploy-commands`——把 `/join`/`/leave`/`/lang`/`/game`/`/reset`/`/test` 注册到 `.env` 里 `DISCORD_TEST_GUILD_ID` 指定的测试服务器(必须先设这个变量,不然报错提示)
+3. `npm run deploy-commands`——把 `/join`/`/leave`/`/lang`/`/game`/`/reset`/`/config`/`/test` 注册到 `.env` 里 `DISCORD_TEST_GUILD_ID` 指定的测试服务器(必须先设这个变量,不然报错提示)
 4. `npm start`——bot 上线,去测试服务器打 `/join` 验证
 5. (可选)想本地测试翻译缓存,按下面「本地 Redis」一节起一个本地 Redis 并配好 `REDIS_URL`——不装也能跑,缓存层会自动降级,见下文
 
@@ -70,7 +70,7 @@ REDIS_URL=redis://127.0.0.1:6379
 redis-cli ping   # 期望输出 PONG
 ```
 
-验证缓存在 bot 里真的生效:`/lang source:zh` 设好中文源语言后,对着同一句中文说两次,第二次的日志里应该出现 `translation cache hit, skipping LLM translation`,而不是走一遍完整的翻译流程。
+验证缓存在 bot 里真的生效:`/config source:zh target:<任意目标语言>` 设好源/目标语言后,对着同一句中文说两次,第二次的日志里应该出现 `translation cache hit, skipping LLM translation`,而不是走一遍完整的翻译流程。
 
 ---
 

@@ -25,6 +25,14 @@ export interface TranscribeOptions {
 export interface TranscribeResult {
   text: string;
   language?: string;
+  usage?: {
+    provider: string;
+    model: string;
+    audioDurationSec?: number;
+    audioBytes?: number;
+    chunkCount?: number;
+    elapsedMs?: number;
+  };
   [key: string]: unknown;
 }
 

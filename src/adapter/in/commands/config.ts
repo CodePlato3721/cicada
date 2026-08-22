@@ -1,0 +1,65 @@
+import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
+import { getSession, setSourceLang, setTargetLang, setGame } from '../../../application/session.js';
+import { GAMES } from '../../../domain/games.js';
+import { SOURCE_LANG_CHOICES, TARGET_LANG_CHOICES } from './language-choices.js';
+
+// /join 之后必须调用的那一步——source/target 语言 + game 一次性设完，取代原来
+// "必须先 /lang target:<language>" 那条路径。source 和 target 这里都是必填：
+// 源语言曾经有"不设置就靠 STT 自动检测锁定"的兜底，但实测检测准确度太低（极短音频
+// 经常判错语种，见 CLAUDE.md「术语检测用哪种语言扫描」的历史记录），已经把那条自动
+// 检测逻辑从 pipeline.js 里整个删掉——现在源语言跟目标语言一样，没有任何默认值/兜底，
+// 必须显式设置一次。game 保留可选，不传就沿用 session 当前值（/join 时已经默认成
+// games.js 第一项）。
+//
+// /lang 和 /game 两个命令还在，留给配置好之后只想单独调整某一项的场景；/config 是
+// 首次配置时的推荐入口，一条命令把三样都设好。
+const GAME_CHOICES = GAMES.map((game) => ({ name: game.name, value: game.id }));
+
+export const data = new SlashCommandBuilder()
+  .setName('config')
+  .setDescription('Set source language, target language, and game all at once — the required step after /join')
+  .addStringOption((option) =>
+    option
+      .setName('source')
+      .setDescription('Source language: the language the speaker uses')
+      .setRequired(true)
+      .addChoices(...SOURCE_LANG_CHOICES),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('target')
+      .setDescription('Target language: what to translate into (limited by TTS voice coverage)')
+      .setRequired(true)
+      .addChoices(...TARGET_LANG_CHOICES),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('game')
+      .setDescription('Which game is being played, to select the matching terminology dictionary')
+      .setRequired(false)
+      .addChoices(...GAME_CHOICES),
+  );
+
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const source = interaction.options.getString('source', true);
+  const target = interaction.options.getString('target', true);
+  const gameId = interaction.options.getString('game');
+
+  // guildId 必然存在，见 game.js 同样的 ! 断言惯例。
+  const session = getSession(interaction.guildId!);
+  if (!session) {
+    await interaction.reply({ content: "I haven't joined a voice channel yet — use /join first.", ephemeral: true });
+    return;
+  }
+
+  setSourceLang(interaction.guildId!, source);
+  setTargetLang(interaction.guildId!, target);
+  if (gameId) setGame(interaction.guildId!, gameId);
+
+  const game = session.game ? GAMES.find((g) => g.id === session.game) : undefined;
+  const gameLabel = game ? game.name : 'none (general translation)';
+  await interaction.reply({
+    content: `Configured - source: ${source}, target: ${target}, game: ${gameLabel}. Translation is now active.`,
+    ephemeral: true,
+  });
+}

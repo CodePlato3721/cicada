@@ -8,6 +8,7 @@ export interface Game {
 
 export const GAMES: Game[] = [
   { id: 'whiteout', name: 'Whiteout Survival' },
+  { id: 'hok', name: 'Honor of Kings' },
 ];
 
 export function isValidGame(id: string): boolean {

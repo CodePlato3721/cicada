@@ -1,5 +1,9 @@
 import type { SynthesizeOptions, VoicesByGender } from '../../../application/ports/tts.js';
 import { postJsonForAudio } from './client.js';
+import { createLogger } from '../logger.js';
+import { buildTtsUsageFields } from '../usage-log.js';
+
+const logger = createLogger('deepgram/tts');
 
 // 官方音色列表明确标了性别（不是我们猜的），来源：developers.deepgram.com/docs/tts-models
 // 英文音色池最大（长期默认输出语言，多留几个方便区分不同说话人）；es/de/fr/ja 各自只接了
@@ -48,7 +52,10 @@ export const TTS_SUPPORTED_LANGS = ['en', 'es', 'de', 'fr', 'ja'];
 // text: 待合成文本。voice: 上面列表里的一个 model 名。
 // 返回 wav Buffer，跟 groq/tts.js 的 synthesize() 返回形状一致——响应直接就是音频字节，
 // 不像 Qwen 那样还要多一次下载。
-export async function synthesize(text: string, { voice = 'aura-2-thalia-en' }: SynthesizeOptions = { voice: 'aura-2-thalia-en' }): Promise<Buffer> {
+export async function synthesize(
+  text: string,
+  { voice = 'aura-2-thalia-en', logContext }: SynthesizeOptions = { voice: 'aura-2-thalia-en' },
+): Promise<Buffer> {
   if (!VALID_VOICES.includes(voice)) {
     throw new Error(`voice must be one of: ${VALID_VOICES.join(', ')}`);
   }
@@ -60,5 +67,18 @@ export async function synthesize(text: string, { voice = 'aura-2-thalia-en' }: S
     sample_rate: '24000', // 跟 domain/wav.js 的 ttsWavToDiscordPcm 假设的输入采样率对齐
   });
 
-  return postJsonForAudio(`/speak?${params}`, { text });
+  const startedAt = Date.now();
+  const audio = await postJsonForAudio(`/speak?${params}`, { text });
+  logger.info(
+    buildTtsUsageFields({
+      provider: 'deepgram',
+      model: voice,
+      text,
+      audio,
+      elapsedMs: Date.now() - startedAt,
+      logContext,
+    }),
+    'External API usage: TTS synthesis',
+  );
+  return audio;
 }

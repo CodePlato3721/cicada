@@ -15,13 +15,13 @@ export type TranslateCacheLookupResult =
   | { kind: 'not-applicable' }
   // 规范化之后是空字符串（纯语气词/噪音）——调用方应该跳过这句话的翻译/播放，
   // 不产出任何输出，也不写缓存。
-  | { kind: 'empty-after-normalize' }
+  | { kind: 'empty-after-normalize'; normalizedText: string }
   // 命中缓存，直接把译文给调用方，不用再走术语检测/LLM 翻译。
-  | { kind: 'hit'; translatedText: string; cacheKey: string }
+  | { kind: 'hit'; translatedText: string; cacheKey: string; normalizedText: string }
   // 没命中（或 Redis 不可用，见 adapter/out/redis/translate-cache.js 的降级逻辑）——
   // 调用方应该用 textForTranslation（规范化后的文本，不是原始转写）继续走术语检测/
   // LLM 翻译，翻译完之后用 cacheKey 写回缓存。
-  | { kind: 'miss'; textForTranslation: string; cacheKey: string };
+  | { kind: 'miss'; textForTranslation: string; cacheKey: string; normalizedText: string };
 
 export interface TranslateCacheLookupParams {
   sourceLang: string | undefined;
@@ -40,11 +40,11 @@ export async function lookupTranslationCache(params: TranslateCacheLookupParams)
   if (!normalize) return { kind: 'not-applicable' };
 
   const normalizedText = normalize(transcriptText);
-  if (!normalizedText) return { kind: 'empty-after-normalize' };
+  if (!normalizedText) return { kind: 'empty-after-normalize', normalizedText };
 
   const cacheKey = buildTranslateCacheKey({ gameId: gameId ?? '', srcLang: sourceLang!, tgtLang: targetLang, normalizedText });
   const cached = await getCachedTranslation(cacheKey);
-  if (cached) return { kind: 'hit', translatedText: cached, cacheKey };
+  if (cached) return { kind: 'hit', translatedText: cached, cacheKey, normalizedText };
 
-  return { kind: 'miss', textForTranslation: normalizedText, cacheKey };
+  return { kind: 'miss', textForTranslation: normalizedText, cacheKey, normalizedText };
 }
