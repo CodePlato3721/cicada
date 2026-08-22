@@ -1,6 +1,11 @@
 import { getVoicesByGender } from './ports/tts.js';
 import type { Gender } from '../domain/pitch.js';
 
+export function isVoiceConfiguredForProviderLang(voice: string, provider: string, lang: string): boolean {
+  const voicesByGender = getVoicesByGender(provider, lang);
+  return [...(voicesByGender.male ?? []), ...(voicesByGender.female ?? [])].includes(voice);
+}
+
 // 给一个新出现的说话人分配 TTS 音色：按检测到的性别选对应池子（'unknown' 就在这个
 // 语言下的全部音色里选），优先避开这场会话里已经在用的音色，尽量保证"一耳朵能听出是
 // 不同的人"；池子用完（同性别说话人比声音种类还多）就允许重复，退化但不报错——

@@ -4,6 +4,7 @@ import prism from 'prism-media';
 import type { opus } from 'prism-media';
 import { StreamingVad } from '../../domain/streaming-vad.js';
 import { getKeyterms } from '../../domain/keyterms.js';
+import { stereoInt16BufferToMonoFloat32 } from '../../domain/pcm.js';
 import { clearPlaybackQueue } from '../out/playback-queue.js';
 import { saveInputRecording } from '../out/recordings.js';
 import { handleSegment } from '../../application/pipeline.js';
@@ -194,10 +195,10 @@ async function createSpeakerPipeline(
     forceEndSpeech: () => {},
   };
 
-  // 这句话对应的流式 STT 连接——VAD 通过 onSpeechStart 判定"这句话开始了"时 open，
-  // 判定"这句话结束了"（SpeechEnd/forceEnd）时 close 拿最终转写结果。null 代表当前
-  // 没有正在进行中的句子（还没开口，或者上一句已经收尾）。
+  // 这句话对应的流式 STT 连接。它从这个 speaker burst 的第一块 PCM 开始打开，而不是等
+  // VAD SpeechStart：极短/轻声词（比如"再见"）可能过不了本地 VAD，但 Deepgram 仍然能识别。
   let sttStream: SttStream | null = null;
+  let sttAudioChunks: Buffer[] = [];
   const jobQueue: SpeakerJob[] = [];
   let draining = false;
   let decodedChunkCount = 0;
@@ -252,6 +253,25 @@ async function createSpeakerPipeline(
     logAudioDiagnostics('interval');
   };
 
+  const openSttStreamIfNeeded = async (): Promise<void> => {
+    if (sttStream) return;
+
+    const session = await getSession(guildId);
+    sttStream = openStream({
+      language: session?.sourceLang,
+      prompt: speakerState.lastTranscript,
+      keyterms: getKeyterms(session?.game, session?.sourceLang),
+    });
+    sttAudioChunks = [];
+  };
+
+  const consumeSttAudioSegment = (): Float32Array | null => {
+    if (sttAudioChunks.length === 0) return null;
+    const stereoPcm = Buffer.concat(sttAudioChunks);
+    sttAudioChunks = [];
+    return stereoInt16BufferToMonoFloat32(stereoPcm);
+  };
+
   // 关掉当前这路 STT 流（如果有）并拿到最终结果；没有正在进行的流就直接给个空结果，
   // 调用方（下面 handleDetectedSegment）后续会按"这段话没识别出文字"处理，不额外分支。
   // 流式连接在拿到最终结果之前中途失败（网络中断、供应商报错）时 stream.close() 的
@@ -300,23 +320,11 @@ async function createSpeakerPipeline(
       const job = jobQueue.shift()!;
       try {
         if (job.type === 'chunk') {
-          const sessionForStt = sttStream ? undefined : await getSession(guildId);
+          await openSttStreamIfNeeded();
+          sttAudioChunks.push(job.data);
           const segments = await vad.feed(job.data, {
             onSpeechStart: () => {
               logger.info({ userId }, `${userId} VAD confirmed this is speech, starting to count a sentence`);
-              if (!sttStream) {
-                sttStream = openStream({
-                  language: sessionForStt?.sourceLang,
-                  prompt: speakerState.lastTranscript,
-                  // keyterm 是开连接时的 query 参数，连上之后不能中途改（这个项目用的
-                  // 是 Deepgram nova-3 标准流式接口，没有连接期间动态更新关键词的能力，
-                  // 那是更新的 Flux 模型才有的 Configure 消息机制）。keyterms.js 现在
-                  // 按"游戏 + 源语言"两层分组，不再只支持中文——直接把 session.sourceLang
-                  // 传给 getKeyterms，这门语言下这个游戏还没维护关键词（或者 sourceLang/
-                  // game 任一还没配置）都会拿到空数组，不需要在这里手写判断走哪个分支。
-                  keyterms: getKeyterms(sessionForStt?.game, sessionForStt?.sourceLang),
-                });
-              }
             },
           });
           // 说话过程中，decoder 吐出来的每一块 PCM 除了喂给 VAD 做边界判断，同时也
@@ -329,6 +337,7 @@ async function createSpeakerPipeline(
             // 的 STT 请求耗时不一，起不到重排的作用（见 playback-queue.js 顶部注释）。
             const sequence = await nextPlaybackSequence(guildId);
             const transcribeResult = await closeSttStream();
+            sttAudioChunks = [];
             if (sequence === null) {
               // 理论上不会发生：这个说话人的处理流水线只会在 startListening 里
               // createSession 已经执行过之后才会启动，guild 会话此时必然存在。这里
@@ -345,6 +354,7 @@ async function createSpeakerPipeline(
             logger.info({ userId }, `${userId} audio stream paused, force-ending this sentence`);
             const sequence = await nextPlaybackSequence(guildId);
             const transcribeResult = await closeSttStream();
+            sttAudioChunks = [];
             if (sequence === null) {
               logger.error({ userId }, `${userId} failed to allocate a playback sequence — guild session missing unexpectedly`);
             } else {
@@ -364,7 +374,21 @@ async function createSpeakerPipeline(
               `${userId} speaking ended without a complete VAD segment, closing open STT stream`,
             );
             // VAD 没有攒出一段完整语音，但这句话对应的 STT 流还开着——关掉，不留悬空连接。
-            await closeSttStream();
+            const fallbackSegment = consumeSttAudioSegment();
+            const transcribeResult = await closeSttStream();
+            const transcriptText = transcribeResult?.text?.trim();
+            if (fallbackSegment && transcriptText) {
+              const sequence = await nextPlaybackSequence(guildId);
+              if (sequence === null) {
+                logger.error({ userId }, `${userId} failed to allocate a playback sequence — guild session missing unexpectedly`);
+              } else {
+                logger.info(
+                  { event: 'speaker_stt_fallback_without_vad_segment', guildId, userId, sequence, transcript: transcriptText },
+                  `${userId} STT recognized text without a VAD segment, processing fallback segment`,
+                );
+                handleDetectedSegment(fallbackSegment, sequence, transcribeResult);
+              }
+            }
           } else {
             logger.info(
               {

@@ -11,7 +11,7 @@ import { translate } from './ports/translate.js';
 import { synthesize } from './ports/tts.js';
 import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
 import { getSession, listSpeakerEntries, saveSpeaker, type SpeakerState } from './session.js';
-import { assignVoice } from './voice-assignment.js';
+import { assignVoice, isVoiceConfiguredForProviderLang } from './voice-assignment.js';
 import { createLogger } from '../adapter/out/logger.js';
 
 const logger = createLogger('pipeline');
@@ -61,7 +61,17 @@ function detectSpeakerGender(speakerState: SpeakerState, monoFloat32: Float32Arr
 // 每个说话人在当前 guild target/ttsProvider 下固定一个音色。source/target 是 guild 级配置；
 // target/ttsProvider 变化时 session.ts 会清掉所有 speaker.voice，下次播放再按新语言重新分配。
 async function resolveSpeakerVoice(guildId: string, userId: string, speakerState: SpeakerState, provider: string, lang: string): Promise<string> {
-  if (speakerState.voice) return speakerState.voice;
+  if (speakerState.voice) {
+    if (isVoiceConfiguredForProviderLang(speakerState.voice, provider, lang)) {
+      return speakerState.voice;
+    }
+    logger.info(
+      { speaker: speakerState.label, provider, lang, previousVoice: speakerState.voice },
+      `${speakerState.label} has stale voice ${speakerState.voice} for ${provider}(${lang}), assigning a new voice`,
+    );
+    speakerState.voice = undefined;
+    await saveSpeaker(guildId, userId, speakerState);
+  }
 
   const usedVoices = new Set(
     (await listSpeakerEntries(guildId))

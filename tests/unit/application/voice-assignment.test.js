@@ -3,7 +3,7 @@
 // azure/zh）驱动测试，不需要 mock。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assignVoice } from '../../../dist/application/voice-assignment.js';
+import { assignVoice, isVoiceConfiguredForProviderLang } from '../../../dist/application/voice-assignment.js';
 
 test('assignVoice：按性别从对应语言的音色池里选，不会选到别的语言/性别的音色', () => {
   const voice = assignVoice('male', new Set(), 'deepgram', 'en');
@@ -30,4 +30,10 @@ test('assignVoice：female 池有多个候选时，会排除已用的那个', ()
 
 test('assignVoice：供应商/语言组合下没有配置任何音色就抛错', () => {
   assert.throws(() => assignVoice('male', new Set(), 'deepgram', 'zh'), /No voices configured/);
+});
+
+test('isVoiceConfiguredForProviderLang：只允许复用当前 provider/lang 的音色', () => {
+  assert.equal(isVoiceConfiguredForProviderLang('ko-KR-InJoonNeural', 'azure', 'ko'), true);
+  assert.equal(isVoiceConfiguredForProviderLang('aura-2-atlas-en', 'azure', 'ko'), false);
+  assert.equal(isVoiceConfiguredForProviderLang('ko-KR-InJoonNeural', 'deepgram', 'en'), false);
 });
