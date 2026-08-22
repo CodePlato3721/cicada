@@ -39,7 +39,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
-    startListening(connection, voiceChannel);
+    await startListening(connection, voiceChannel);
 
     // 第一条消息：确认加入 + 马上要放一段自检音效，让用户提前知道接下来会发生什么。
     // 内容跟 /test 命令播放的是同一段三音符旋律（domain/test-tone.js 共用），

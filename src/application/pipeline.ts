@@ -1,4 +1,5 @@
 import type { VoiceConnection } from '@discordjs/voice';
+import type { VoiceBasedChannel } from 'discord.js';
 import { ttsWavToDiscordPcm } from '../domain/wav.js';
 import { estimateGender } from '../domain/pitch.js';
 import { applyTerminology, stripKeepTags } from '../domain/terminology.js';
@@ -9,7 +10,7 @@ import type { TranscribeResult } from './ports/stt.js';
 import { translate } from './ports/translate.js';
 import { synthesize } from './ports/tts.js';
 import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
-import { getSession, listSpeakers, type Session, type SpeakerState } from './session.js';
+import { getSession, listSpeakerEntries, saveSpeaker, type SpeakerState } from './session.js';
 import { assignVoice } from './voice-assignment.js';
 import { createLogger } from '../adapter/out/logger.js';
 
@@ -26,7 +27,7 @@ const TTS_VOICE_OVERRIDE = process.env.TTS_VOICE || undefined;
 // source/target 语言还没配置齐时发的固定文字提示——改用文字而不是语音播报：语音播报
 // 依赖 TTS 供应商这条链路本身（会经过 synthesize/播放队列，任何一环出问题都可能又变成
 // "静默失败、听不到声音也看不出哪里错了"，之前已经踩过一次这个坑），文字消息走
-// session.voiceChannel.send，不依赖 TTS，链路更短、失败了控制台也看得到明确报错。
+// voiceChannel.send 不依赖 TTS，链路更短、失败了控制台也看得到明确报错。
 // 这里可以直接把命令语法写全（比如反引号包住的 /config source:<language> target:<language>）——
 // 文字不用考虑"念出来怪不怪"这个语音场景才有的限制。
 //
@@ -38,10 +39,8 @@ const TTS_VOICE_OVERRIDE = process.env.TTS_VOICE || undefined;
 const CONFIG_NOT_SET_MESSAGE =
   "⚠️ I can't translate yet — set source and target language first with `/config source:<language> target:<language>`.";
 
-async function sendConfigNotSetReminder(session: Session | undefined): Promise<void> {
-  await session!.voiceChannel
-    ?.send(CONFIG_NOT_SET_MESSAGE)
-    .catch((err: unknown) => logger.error({ err }, 'Failed to send config-not-set reminder'));
+async function sendConfigNotSetReminder(voiceChannel: VoiceBasedChannel): Promise<void> {
+  await voiceChannel.send(CONFIG_NOT_SET_MESSAGE).catch((err: unknown) => logger.error({ err }, 'Failed to send config-not-set reminder'));
 }
 
 // 说话人第一次开口时判断性别，纯声学特征、跟 TTS 供应商无关，只需要判一次、
@@ -59,29 +58,21 @@ function detectSpeakerGender(speakerState: SpeakerState, monoFloat32: Float32Arr
   );
 }
 
-// 每个说话人在每个"供应商+语言"组合下各自固定一个音色，缓存在
-// speakerState.voicesByProviderLang（"provider:lang" -> voice）。缓存 key 必须是
-// 供应商+语言的组合，不能只按供应商——同一个供应商可能覆盖好几种语言（比如 deepgram
-// 覆盖 en/fr/ja/de/es），只按供应商缓存的话，同一个人从 target:en 切到 target:fr
-// （两者都路由到 deepgram，供应商没变）会直接复用缓存的英语音色去读法语文本，音色
-// 跟语言对不上。不同供应商的音色命名空间也完全不通用（Deepgram 是"aura-2-xxx-en"
-// 这种，Azure 是"zh-TW-XxxNeural"这种），没法直接复用同一个音色名；供应商或语言
-// 变化都会给新组合单独分配一个（跟旧组合听感未必一致，这是多供应商架构没法避免的
-// 取舍——同一个人切换目标语言前后，声音可能会变）。只要"供应商+语言"这个组合没变，
-// 同一个说话人的音色整场保持不变。
-function resolveSpeakerVoice(guildId: string, speakerState: SpeakerState, provider: string, lang: string): string {
-  speakerState.voicesByProviderLang ??= {};
-  const cacheKey = `${provider}:${lang}`;
-  if (speakerState.voicesByProviderLang[cacheKey]) return speakerState.voicesByProviderLang[cacheKey];
+// 每个说话人在当前 guild target/ttsProvider 下固定一个音色。source/target 是 guild 级配置；
+// target/ttsProvider 变化时 session.ts 会清掉所有 speaker.voice，下次播放再按新语言重新分配。
+async function resolveSpeakerVoice(guildId: string, userId: string, speakerState: SpeakerState, provider: string, lang: string): Promise<string> {
+  if (speakerState.voice) return speakerState.voice;
 
   const usedVoices = new Set(
-    Array.from(listSpeakers(guildId))
-      .filter((speaker) => speaker !== speakerState)
-      .map((speaker) => speaker.voicesByProviderLang?.[cacheKey])
+    (await listSpeakerEntries(guildId))
+      .filter(([speakerUserId]) => speakerUserId !== userId)
+      .map(([, speaker]) => speaker)
+      .map((speaker) => speaker.voice)
       .filter((voice): voice is string => Boolean(voice)),
   );
   const voice = assignVoice(speakerState.gender ?? 'unknown', usedVoices, provider, lang);
-  speakerState.voicesByProviderLang[cacheKey] = voice;
+  speakerState.voice = voice;
+  await saveSpeaker(guildId, userId, speakerState);
   logger.info(
     { speaker: speakerState.label, provider, lang, voice },
     `${speakerState.label} first use of ${provider}(${lang}) for playback, assigned voice: ${voice}`,
@@ -118,6 +109,7 @@ function resolveSpeakerVoice(guildId: string, speakerState: SpeakerState, provid
 export async function handleSegment(
   guildId: string,
   connection: VoiceConnection,
+  voiceChannel: VoiceBasedChannel,
   userId: string,
   monoFloat32: Float32Array,
   speakerState: SpeakerState,
@@ -136,6 +128,7 @@ export async function handleSegment(
   let enqueued = false;
   try {
     detectSpeakerGender(speakerState, monoFloat32);
+    await saveSpeaker(guildId, userId, speakerState);
 
     // 流式 STT 连接在拿到最终结果之前中途失败（网络中断、供应商报错）时，
     // voice-listener.js 的 closeSttStream 已经把这种情况转成 null 传过来——不做任何
@@ -148,13 +141,13 @@ export async function handleSegment(
       return;
     }
 
-    const session = getSession(guildId);
+    const session = await getSession(guildId);
     if (!session?.sourceLang || !session?.targetLang) {
       // source/target 任意一个没设置过（都没有默认值，也都没有自动检测兜底，见
       // session.js）——不翻译、不消耗翻译额度，每次说话都直接发一条固定文字提示，
       // 逼着用户先 /config source:<语言> target:<语言> 一次。
       logger.info({ ...ctx, who }, `${who} source/target language not fully configured, skipping translate, sending text reminder`);
-      await sendConfigNotSetReminder(session);
+      await sendConfigNotSetReminder(voiceChannel);
       return;
     }
 
@@ -196,6 +189,7 @@ export async function handleSegment(
     }
     logger.info({ ...ctx, who, transcript: transcriptText }, `${who} transcript: "${transcriptText}"`);
     speakerState.lastTranscript = transcriptText;
+    await saveSpeaker(guildId, userId, speakerState);
 
     // 翻译缓存：具体"哪些源语言接入了缓存、怎么规范化"完全是 translate-cache-lookup.js
     // 的内部细节（目前只有中文，见 DESIGN.md「Scope」）——这里只认它返回的四种结果，
@@ -296,7 +290,7 @@ export async function handleSegment(
       return;
     }
 
-    const voice = TTS_VOICE_OVERRIDE ?? resolveSpeakerVoice(guildId, speakerState, provider, targetLang);
+    const voice = TTS_VOICE_OVERRIDE ?? (await resolveSpeakerVoice(guildId, userId, speakerState, provider, targetLang));
     const ttsWav = await synthesize(translatedText, {
       voice,
       targetLang,

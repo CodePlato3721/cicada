@@ -16,7 +16,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  stopListening(interaction.guildId!);
+  await stopListening(interaction.guildId!);
   connection.destroy();
   await interaction.reply({ content: 'Stopped listening and left the voice channel.', ephemeral: true });
 }

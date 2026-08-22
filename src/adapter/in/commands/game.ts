@@ -20,7 +20,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   // 这几个命令只在语音频道所在的服务器里被调用（用户先 /join 一个服务器的语音频道），
   // guildId 在这个上下文里必然存在——用 ! 断言，跟 pipeline.js 里 session! 是同一个
   // 惯例：类型层面标注一个运行时已经成立的不变量，不是新增判断分支。
-  const ok = setGame(interaction.guildId!, gameId);
+  const ok = await setGame(interaction.guildId!, gameId);
   if (!ok) {
     await interaction.reply({ content: "I haven't joined a voice channel yet — use /join first.", ephemeral: true });
     return;

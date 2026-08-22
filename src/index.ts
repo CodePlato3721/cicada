@@ -2,6 +2,7 @@ import { Client, GatewayIntentBits, Events, type ChatInputCommandInteraction } f
 import { generateDependencyReport } from '@discordjs/voice';
 import { config } from './config.js';
 import { createLogger } from './adapter/out/logger.js';
+import { ensureRedisReady } from './adapter/out/redis/client.js';
 import * as join from './adapter/in/commands/join.js';
 import * as leave from './adapter/in/commands/leave.js';
 import * as test from './adapter/in/commands/test.js';
@@ -38,6 +39,9 @@ const client = new Client({
 const logger = createLogger('index');
 
 logger.info(generateDependencyReport());
+
+await ensureRedisReady();
+logger.info('Redis connection ready');
 
 client.once(Events.ClientReady, (readyClient) => {
   logger.info(`Online, logged in as ${readyClient.user.tag}`);
