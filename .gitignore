@@ -6,3 +6,4 @@ scripts/drafts/
 tests/e2e/output/
 dist/
 .plato/
+.serena/
