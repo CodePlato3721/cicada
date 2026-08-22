@@ -36,6 +36,10 @@ function getOrCreateQueueState(guildId: string, connection: VoiceConnection): Qu
 export function enqueuePlayback(guildId: string, connection: VoiceConnection, pcmBuffer: Buffer, sequence: number): void {
   const state = getOrCreateQueueState(guildId, connection);
   state.pending.set(sequence, pcmBuffer);
+  logger.info(
+    { guildId, sequence, nextSequence: state.nextSequence, pendingSequences: [...state.pending.keys()].sort((a, b) => a - b) },
+    'Playback queued',
+  );
   drain(guildId);
 }
 
@@ -44,10 +48,13 @@ export function enqueuePlayback(guildId: string, connection: VoiceConnection, pc
 // 不然重排缓冲区会一直卡在等一个永远不会来的 sequence，后面所有已经到达、排在它后面
 // 的音频全部播不出来。pipeline.js 用 try/finally 保证每个 sequence 最终一定会调用
 // enqueuePlayback 或者这个函数中的一个，不会两个都不调、也不会两个都调。
-export function skipPlaybackSequence(guildId: string, sequence: number): void {
-  const state = queues.get(guildId);
-  if (!state) return; // 这个 guild 还没播过任何东西，队列都没建立过，没什么好跳过的
+export function skipPlaybackSequence(guildId: string, connection: VoiceConnection, sequence: number): void {
+  const state = getOrCreateQueueState(guildId, connection);
   state.pending.set(sequence, null); // null 代表"这个号位故意空着，不播"
+  logger.info(
+    { guildId, sequence, nextSequence: state.nextSequence, pendingSequences: [...state.pending.keys()].sort((a, b) => a - b) },
+    'Playback sequence skipped',
+  );
   drain(guildId);
 }
 
@@ -69,9 +76,27 @@ async function drain(guildId: string): Promise<void> {
       logger.error({ err, guildId }, 'Playback queue error');
     }
   }
+  if (state.pending.size > 0) {
+    logger.info(
+      { guildId, nextSequence: state.nextSequence, pendingSequences: [...state.pending.keys()].sort((a, b) => a - b) },
+      'Playback queue waiting for earlier sequence',
+    );
+  }
   state.running = false;
 }
 
 export function clearPlaybackQueue(guildId: string): void {
   queues.delete(guildId);
+}
+
+export function getPlaybackQueueDebugState(guildId: string):
+  | { nextSequence: number; pendingSequences: number[]; running: boolean }
+  | undefined {
+  const state = queues.get(guildId);
+  if (!state) return undefined;
+  return {
+    nextSequence: state.nextSequence,
+    pendingSequences: [...state.pending.keys()].sort((a, b) => a - b),
+    running: state.running,
+  };
 }

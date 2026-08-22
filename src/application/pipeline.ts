@@ -319,6 +319,6 @@ export async function handleSegment(
     // 且只有一次交代：真播放了就不用管（enqueued 已经是 true）；没播放（提前
     // return 的那些分支）就显式告诉播放队列跳过这个号位，不然重排缓冲区会一直
     // 卡住等一个不会来的号码（见 playback-queue.js 顶部注释）。
-    if (!enqueued) skipPlaybackSequence(guildId, sequence);
+    if (!enqueued) skipPlaybackSequence(guildId, connection, sequence);
   }
 }
