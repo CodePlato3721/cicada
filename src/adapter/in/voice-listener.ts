@@ -7,6 +7,7 @@ import { getKeyterms } from '../../domain/keyterms.js';
 import { clearPlaybackQueue } from '../out/playback-queue.js';
 import { saveInputRecording } from '../out/recordings.js';
 import { handleSegment } from '../../application/pipeline.js';
+import { startTrackingConnection, stopTrackingConnection } from '../../application/billing/connection-usage-tracker.js';
 import { openStream, type SttStream, type TranscribeResult } from '../../application/ports/stt.js';
 import {
   createSession,
@@ -82,10 +83,6 @@ function hasSpeakerVoiceRuntime(guildId: string, userId: string): boolean {
   return guildVoiceRuntimes.get(guildId)?.speakers.has(userId) ?? false;
 }
 
-function isSpeakerPipelineActiveOrStarting(guildId: string, userId: string): boolean {
-  return hasSpeakerVoiceRuntime(guildId, userId) || startingSpeakerPipelines.has(speakerRuntimeKey(guildId, userId));
-}
-
 export async function startListening(connection: VoiceConnection, voiceChannel: VoiceBasedChannel): Promise<void> {
   const guildId = connection.joinConfig.guildId;
 
@@ -93,6 +90,7 @@ export async function startListening(connection: VoiceConnection, voiceChannel: 
   await stopListening(guildId);
 
   await createSession(guildId);
+  startTrackingConnection(guildId, voiceChannel);
   guildVoiceRuntimes.set(guildId, { connection, voiceChannel, speakers: new Map() });
 
   const onSpeakingStart = (userId: string) => {
@@ -100,8 +98,16 @@ export async function startListening(connection: VoiceConnection, voiceChannel: 
     // 能看出是不是网络/@discordjs-voice 这一层就已经有延迟——两条日志各自的 time 字段
     // 就是时间点，不用再在消息文本里手动拼一遍时间。
     logger.info({ userId }, `${userId} Discord detected speaking started`);
-    if (isSpeakerPipelineActiveOrStarting(guildId, userId)) return; // 已经在监听或正在初始化这个人了
     const key = speakerRuntimeKey(guildId, userId);
+    const hasRuntime = hasSpeakerVoiceRuntime(guildId, userId);
+    const isStarting = startingSpeakerPipelines.has(key);
+    if (hasRuntime || isStarting) {
+      logger.info(
+        { event: 'speaker_pipeline_reused', guildId, userId, hasRuntime, isStarting },
+        `${userId} speaker pipeline already active or starting`,
+      );
+      return; // 已经在监听或正在初始化这个人了
+    }
     startingSpeakerPipelines.add(key);
     createSpeakerPipeline(guildId, connection, voiceChannel, userId)
       .catch((err) => {
@@ -149,6 +155,7 @@ export async function stopListening(guildId: string): Promise<void> {
   }
 
   guildVoiceRuntimes.delete(guildId);
+  stopTrackingConnection(guildId);
   await deleteSession(guildId);
   clearPlaybackQueue(guildId);
   logger.info({ guildId }, `Stopped listening to guild ${guildId}`);
@@ -163,6 +170,7 @@ async function createSpeakerPipeline(
   voiceChannel: VoiceBasedChannel,
   userId: string,
 ): Promise<void> {
+  logger.info({ event: 'speaker_pipeline_create_start', guildId, userId }, `${userId} creating speaker pipeline`);
   const vad = await StreamingVad.create();
   const guildRuntime = guildVoiceRuntimes.get(guildId);
   if (!guildRuntime) {
@@ -175,6 +183,7 @@ async function createSpeakerPipeline(
   const opusStream = connection.receiver.subscribe(userId, {
     end: { behavior: EndBehaviorType.Manual },
   });
+  logger.info({ event: 'discord_opus_stream_subscribed', guildId, userId }, `${userId} Discord opus stream subscribed`);
   const decoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
 
   opusStream.pipe(decoder);
@@ -185,6 +194,11 @@ async function createSpeakerPipeline(
       lastTranscript: '',
     };
     await addSpeaker(guildId, userId, speakerState);
+  } else {
+    logger.info(
+      { event: 'speaker_state_reused', guildId, userId, who: speakerState.label ?? null },
+      `${userId} reusing speaker state: ${speakerState.label ?? '(unlabeled)'}`,
+    );
   }
 
   const speakerRuntime: SpeakerVoiceRuntime = {
@@ -305,6 +319,20 @@ async function createSpeakerPipeline(
             onSpeechStart: () => {
               logger.info({ userId }, `${userId} VAD confirmed this is speech, starting to count a sentence`);
               if (!sttStream) {
+                const keyterms = getKeyterms(sessionForStt?.game, sessionForStt?.sourceLang);
+                logger.info(
+                  {
+                    event: 'stt_stream_opening',
+                    guildId,
+                    userId,
+                    who: speakerState.label ?? null,
+                    sourceLang: sessionForStt?.sourceLang ?? null,
+                    gameId: sessionForStt?.game ?? null,
+                    keytermCount: keyterms.length,
+                    hasLastTranscript: Boolean(speakerState.lastTranscript),
+                  },
+                  `${userId} opening STT stream for ${speakerState.label ?? 'unknown speaker'}`,
+                );
                 sttStream = openStream({
                   language: sessionForStt?.sourceLang,
                   prompt: speakerState.lastTranscript,
@@ -314,7 +342,7 @@ async function createSpeakerPipeline(
                   // 按"游戏 + 源语言"两层分组，不再只支持中文——直接把 session.sourceLang
                   // 传给 getKeyterms，这门语言下这个游戏还没维护关键词（或者 sourceLang/
                   // game 任一还没配置）都会拿到空数组，不需要在这里手写判断走哪个分支。
-                  keyterms: getKeyterms(sessionForStt?.game, sessionForStt?.sourceLang),
+                  keyterms,
                 });
               }
             },
@@ -407,6 +435,6 @@ async function createSpeakerPipeline(
   guildRuntime.speakers.set(userId, speakerRuntime);
   logger.info(
     { event: 'speaker_pipeline_started', guildId, userId, who: speakerState.label },
-    `Started listening to speaker ${userId}`,
+    `${userId} speaker pipeline ready as ${speakerState.label ?? 'unknown speaker'}`,
   );
 }

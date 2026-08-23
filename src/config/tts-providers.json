@@ -1,0 +1,13 @@
+{
+  "providersByLanguage": {
+    "en": "azure",
+    "fr": "azure",
+    "ja": "azure",
+    "de": "azure",
+    "es": "azure",
+    "zh": "azure",
+    "ko": "azure",
+    "pt": "azure",
+    "ar": "azure"
+  }
+}

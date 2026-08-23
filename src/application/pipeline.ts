@@ -202,13 +202,20 @@ export async function handleSegment(
       sourceLang: session.sourceLang,
       targetLang,
       textChars: transcriptText.length,
+      voiceLimitBlockedDate: session.voiceLimitBlockedDate,
     });
     if (!billingDecision.allowed) {
       logger.info(
         { ...ctx, who, planId: billingDecision.planId, reason: billingDecision.reason },
         `${who} billing limit blocked translation: ${billingDecision.reason}`,
       );
-      await sendBillingBlockedReminder(voiceChannel, billingDecision.userMessage ?? 'Translation is unavailable because this server has reached a billing limit.');
+      // userMessage 可能是 undefined——daily limit 撞线这类原因当天已经提醒过一次了
+      // （见 billing-service.js 的 shouldSendBillingNotification），这种情况不重复发
+      // 消息刷屏，但翻译该拦还是拦（上面已经 return 了）。其余原因（账号状态异常、
+      // 语言不在套餐范围）没有去重逻辑，userMessage 总是有值。
+      if (billingDecision.userMessage) {
+        await sendBillingBlockedReminder(voiceChannel, billingDecision.userMessage);
+      }
       return;
     }
     if (billingDecision.warningMessage) {

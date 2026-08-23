@@ -3,6 +3,14 @@ import { dbPool } from './client.js';
 export const BILLING_SCHEMA_SQL = `
 create extension if not exists pgcrypto;
 
+-- 2026-08-23：daily_usage_counters.voice_seconds 以前存的是"STT 识别时长总和"，口径
+-- 是错的（实测发现混进了 TTS 播报时长，且完全没有覆盖"人没说话但 bot 还占着频道"的
+-- 时间）。改成按连接时长打点（见 connection-usage-tracker.ts），表和字段一起改名。
+-- 这两条 rename 只在老部署（表已存在、还叫旧名字）时才会真正执行，新部署表还不
+-- 存在，直接空操作，走下面 create table if not exists 的新名字。
+alter table if exists daily_usage_counters rename to daily_guild_usage;
+alter table if exists daily_guild_usage rename column voice_seconds to connected_seconds;
+
 create table if not exists billing_accounts (
   id uuid primary key default gen_random_uuid(),
   guild_id text not null unique,
@@ -83,10 +91,10 @@ create table if not exists billing_ledger (
 create index if not exists billing_ledger_account_created_idx
   on billing_ledger (account_id, created_at desc);
 
-create table if not exists daily_usage_counters (
+create table if not exists daily_guild_usage (
   guild_id text not null,
   usage_date date not null,
-  voice_seconds numeric(12, 3) not null default 0,
+  connected_seconds numeric(12, 3) not null default 0,
   text_chars integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

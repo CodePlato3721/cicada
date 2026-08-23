@@ -103,6 +103,9 @@ class DeepgramSttStream implements SttStream {
       this.settleClose = resolve;
       this.failClose = reject;
     });
+    // closePromise may reject before voice-listener reaches close().
+    // Keep the rejection observable through close(), but do not let Node treat it as unhandled.
+    this.closePromise.catch(() => {});
 
     // 浏览器/Node 全局 WebSocket 的标准 API 不支持自定义 header，Deepgram 官方文档
     // 给的替代方案是把 API key 通过 Sec-WebSocket-Protocol 子协议传过去（第二个参数

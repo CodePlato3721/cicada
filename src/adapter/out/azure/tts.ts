@@ -3,6 +3,7 @@ import { synthesizeSsml } from './client.js';
 import { createLogger } from '../logger.js';
 import { buildTtsUsageFields } from '../usage-log.js';
 import { recordExternalApiUsage } from '../../../application/billing/billing-service.js';
+import voiceCatalog from '../../../config/tts-voices.json' with { type: 'json' };
 
 const logger = createLogger('azure/tts');
 
@@ -24,24 +25,14 @@ const logger = createLogger('azure/tts');
 // 语言，实测出现过目标语言是中文、却随机抽中葡萄牙语音色去念中文文本，Azure 只能返回
 // 一份近乎空的音频（44 字节，没有实际语音内容），下游 WAV 解析直接报错。语言必须是
 // 分组的第一层，同一门语言内部才按性别再分一层。
-export const VOICES_BY_LANG_AND_GENDER: Record<string, VoicesByGender> = {
-  zh: {
-    male: ['zh-TW-YunJheNeural'],
-    female: ['zh-TW-HsiaoChenNeural', 'zh-TW-HsiaoYuNeural'],
-  },
-  ko: {
-    male: ['ko-KR-InJoonNeural'],
-    female: ['ko-KR-SunHiNeural'],
-  },
-  pt: {
-    male: ['pt-BR-AntonioNeural'],
-    female: ['pt-BR-FranciscaNeural'],
-  },
-  ar: {
-    male: ['ar-SA-HamedNeural'],
-    female: ['ar-SA-ZariyahNeural'],
-  },
-};
+type AzureVoiceCatalog = Record<string, { locale: string; male?: string[]; female?: string[] }>;
+
+export const VOICES_BY_LANG_AND_GENDER: Record<string, VoicesByGender> = Object.fromEntries(
+  Object.entries((voiceCatalog as { azure: AzureVoiceCatalog }).azure).map(([lang, config]) => [lang, {
+    male: config.male,
+    female: config.female,
+  }]),
+);
 
 // 提供给 synthesize() 内部校验用的扁平列表——校验"这是不是本供应商认识的音色"这件事
 // 不需要知道语言，一个 provider 级别的合法音色集合就够了，跟 VOICES_BY_LANG_AND_GENDER
@@ -51,7 +42,7 @@ export const VALID_VOICES: string[] = Object.values(VOICES_BY_LANG_AND_GENDER).f
   ...(byGender.female ?? []),
 ]);
 
-export const TTS_SUPPORTED_LANGS = ['zh', 'ko', 'pt', 'ar'];
+export const TTS_SUPPORTED_LANGS = ['en', 'fr', 'ja', 'de', 'es', 'zh', 'ko', 'pt', 'ar'];
 
 // Azure 音色名字本身的前两段就是 locale（比如 "zh-TW-YunJheNeural" -> "zh-TW"），
 // SSML 的 xml:lang 直接从音色名字拆出来用，不需要调用方另外传一份 locale——避免

@@ -4,11 +4,26 @@ import { fetchWithTimeout } from '../http.js';
 // Azure Speech 的 REST 端点是"每个 region 一个域名"，不是像 Groq/DeepSeek/Deepgram
 // 那样固定一个 base URL——region 来自 AZURE_SPEECH_REGION（控制台"密钥和终结点"页面
 // 能看到，比如 eastus）。
-function baseUrl(): string {
+function speechRegion(): string {
   if (!config.azureSpeechRegion) {
     throw new Error('AZURE_SPEECH_REGION is not set — check your .env file');
   }
-  return `https://${config.azureSpeechRegion}.tts.speech.microsoft.com`;
+  return config.azureSpeechRegion;
+}
+
+function ttsBaseUrl(): string {
+  return `https://${speechRegion()}.tts.speech.microsoft.com`;
+}
+
+function sttBaseUrl(): string {
+  return `https://${speechRegion()}.stt.speech.microsoft.com`;
+}
+
+function speechKey(): string {
+  if (!config.azureSpeechKey) {
+    throw new Error('AZURE_SPEECH_KEY is not set — check your .env file');
+  }
+  return config.azureSpeechKey;
 }
 
 // 鉴权用 Ocp-Apim-Subscription-Key 请求头直接带资源密钥——官方文档确认这个方式对
@@ -20,14 +35,10 @@ function baseUrl(): string {
 // 采样率对齐 domain/wav.js 的假设），不像有些 API 还要多包一层 JSON，
 // 跟 groq/deepgram 两个 adapter 的返回形状一致。
 export async function synthesizeSsml(ssml: string): Promise<Buffer> {
-  if (!config.azureSpeechKey) {
-    throw new Error('AZURE_SPEECH_KEY is not set — check your .env file');
-  }
-
-  const response = await fetchWithTimeout(`${baseUrl()}/cognitiveservices/v1`, {
+  const response = await fetchWithTimeout(`${ttsBaseUrl()}/cognitiveservices/v1`, {
     method: 'POST',
     headers: {
-      'Ocp-Apim-Subscription-Key': config.azureSpeechKey,
+      'Ocp-Apim-Subscription-Key': speechKey(),
       'Content-Type': 'application/ssml+xml',
       'X-Microsoft-OutputFormat': 'riff-24khz-16bit-mono-pcm',
       // Azure 要求必须带 User-Agent，否则请求会被拒绝。
@@ -42,4 +53,31 @@ export async function synthesizeSsml(ssml: string): Promise<Buffer> {
   }
 
   return Buffer.from(await response.arrayBuffer());
+}
+
+export interface AzureSpeechRecognitionResult {
+  RecognitionStatus?: string;
+  DisplayText?: string;
+  Offset?: number;
+  Duration?: number;
+}
+
+export async function recognizeWav(wav: Buffer, language: string): Promise<AzureSpeechRecognitionResult> {
+  const params = new URLSearchParams({ language });
+  const response = await fetchWithTimeout(`${sttBaseUrl()}/speech/recognition/conversation/cognitiveservices/v1?${params}`, {
+    method: 'POST',
+    headers: {
+      'Ocp-Apim-Subscription-Key': speechKey(),
+      'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=48000',
+      Accept: 'application/json',
+    },
+    body: wav,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`Azure Speech STT request failed: ${response.status} ${response.statusText} ${errText}`);
+  }
+
+  return (await response.json()) as AzureSpeechRecognitionResult;
 }

@@ -2,6 +2,7 @@ import * as groq from '../../adapter/out/groq/tts.js';
 import * as deepgram from '../../adapter/out/deepgram/tts.js';
 import * as azure from '../../adapter/out/azure/tts.js';
 import type { UsageLogContext } from './translate.js';
+import ttsProviderConfig from '../../config/tts-providers.json' with { type: 'json' };
 
 // TTS 端口：不像 STT/翻译端口那样"进程启动时用一个 PROVIDER 环境变量选定一个供应商、
 // 整个进程生命周期都用它"——因为不同目标语言要用不同供应商才能真的出声音（各家 TTS
@@ -29,17 +30,7 @@ const PROVIDERS: Record<string, TtsProviderModule> = { groq, deepgram, azure };
 // 目标语言 -> 该用哪个 TTS 供应商播报。这张表是"目标语言实际能不能出声音"的唯一权威
 // 判断依据——一个目标语言不在这张表里，就算翻译文字正常生成了，也不会有语音播报
 // （pipeline.js 会打日志说明这一点，不是静默失败）。
-export const TTS_PROVIDER_BY_LANG: Record<string, string> = {
-  en: 'deepgram',
-  fr: 'deepgram',
-  ja: 'deepgram',
-  de: 'deepgram',
-  es: 'deepgram',
-  zh: 'azure',
-  ko: 'azure',
-  pt: 'azure',
-  ar: 'azure',
-};
+export const TTS_PROVIDER_BY_LANG: Record<string, string> = ttsProviderConfig.providersByLanguage;
 
 // 目标语言 -> 供应商名（字符串），没有映射就返回 undefined——调用方（session.js）据此
 // 判断"这个目标语言到底有没有 TTS 供应商能播"。
