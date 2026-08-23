@@ -4,7 +4,7 @@ import prism from 'prism-media';
 import type { opus } from 'prism-media';
 import { StreamingVad } from '../../domain/streaming-vad.js';
 import { getKeyterms } from '../../domain/keyterms.js';
-import { clearPlaybackQueue } from '../out/playback-queue.js';
+import { clearPlaybackQueue, markMaking } from '../out/playback-queue.js';
 import { saveInputRecording } from '../out/recordings.js';
 import { handleSegment } from '../../application/pipeline.js';
 import { startTrackingConnection, stopTrackingConnection } from '../../application/billing/connection-usage-tracker.js';
@@ -365,6 +365,10 @@ async function createSpeakerPipeline(
               logger.error({ userId }, `${userId} failed to allocate a playback sequence — guild session missing unexpectedly`);
               continue;
             }
+            // 号码分配出来的同一刻，先在播放队列里占个"making"位——这时候 STT/翻译/TTS
+            // 都还没跑，只是让 playback-queue.js 的重排缓冲区知道这个号位不是空号（见
+            // playback-queue.js 顶部注释）。
+            markMaking(guildId, connection, sequence);
             handleDetectedSegment(segment, sequence, transcribeResult);
           }
         } else if (job.type === 'forceEnd') {
@@ -376,6 +380,7 @@ async function createSpeakerPipeline(
             if (sequence === null) {
               logger.error({ userId }, `${userId} failed to allocate a playback sequence — guild session missing unexpectedly`);
             } else {
+              markMaking(guildId, connection, sequence);
               handleDetectedSegment(segment, sequence, transcribeResult);
             }
           } else if (sttStream) {
