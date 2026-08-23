@@ -1,22 +1,21 @@
 import { dbPool } from '../../adapter/out/db/client.js';
 import { createLogger } from '../../adapter/out/logger.js';
+import { todayUtc } from '../../domain/date.js';
+import { shouldSendBillingNotification, markBillingNotificationSent } from '../session.js';
 import { BILLING_PLANS } from './plans.js';
 import { calculateEstimatedCostUsd } from './cost-calculator.js';
 import type { BillingDecision, ExternalApiUsage } from './types.js';
 
 const logger = createLogger('billing');
-const LOW_VOICE_SECONDS_REMAINING_WARNING = 5 * 60;
 const LOW_TEXT_CHARS_REMAINING_WARNING = 500;
-
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function usageJson(usage: ExternalApiUsage): Record<string, unknown> {
   return Object.fromEntries(Object.entries(usage).filter(([, value]) => value !== undefined));
 }
 
-async function ensureAccount(client: { query: typeof dbPool.query }, guildId: string): Promise<{ id: string; planId: 'free' | 'server'; status: string }> {
+// export：connection-usage-tracker.ts 的定时打点也要拿 planId 判断限额，复用同一份
+// "guild 第一次出现就顺手建账号"逻辑，不在那边另写一份容易跟这边走偏。
+export async function ensureAccount(client: { query: typeof dbPool.query }, guildId: string): Promise<{ id: string; planId: 'free' | 'server'; status: string }> {
   const result = await client.query<{ id: string; plan_id: 'free' | 'server'; status: string }>(
     `
       insert into billing_accounts (guild_id)
@@ -34,14 +33,18 @@ export async function checkBillingAllowed({
   guildId,
   sourceLang,
   targetLang,
-  voiceSeconds = 0,
   textChars = 0,
+  voiceLimitBlockedDate,
 }: {
   guildId: string;
   sourceLang?: string;
   targetLang?: string;
-  voiceSeconds?: number;
   textChars?: number;
+  // session.ts 的 session.voiceLimitBlockedDate——pipeline.ts 每句话本来就要 getSession()
+  // 一次拿 source/targetLang，这个字段是同一次 Redis hgetall 顺带带出来的，不产生额外查询。
+  // 跟 todayUtc() 相等就说明"今天的连接时长已经被 connection-usage-tracker.ts 的定时
+  // 打点判定超额了"，不用再查一次 Postgres。
+  voiceLimitBlockedDate?: string;
 }): Promise<BillingDecision> {
   const client = await dbPool.connect();
   try {
@@ -66,48 +69,45 @@ export async function checkBillingAllowed({
       };
     }
 
+    if (plan.dailyConnectedSecondsLimit !== null && voiceLimitBlockedDate === todayUtc()) {
+      // 没有 userMessage——connection-usage-tracker.ts 的定时打点在刚跨过限额线的那一刻
+      // 已经往语音频道发过一次提醒了，这里每句话都会走到，不重复发。
+      return {
+        allowed: false,
+        planId: account.planId,
+        reason: 'daily voice channel connected-time limit reached',
+      };
+    }
+
     let warningMessage: string | undefined;
 
-    if (plan.dailyVoiceSecondsLimit !== null || plan.dailyTextCharsLimit !== null) {
-      const usage = await client.query<{ voice_seconds: string; text_chars: string }>(
+    if (plan.dailyTextCharsLimit !== null) {
+      const usage = await client.query<{ text_chars: string }>(
         `
-          select voice_seconds, text_chars
-          from daily_usage_counters
+          select text_chars
+          from daily_guild_usage
           where guild_id = $1 and usage_date = $2
         `,
         [guildId, todayUtc()],
       );
-      const row = usage.rows[0] ?? { voice_seconds: '0', text_chars: '0' };
-      const nextVoiceSeconds = Number(row.voice_seconds) + voiceSeconds;
+      const row = usage.rows[0] ?? { text_chars: '0' };
       const nextTextChars = Number(row.text_chars) + textChars;
-      if (plan.dailyVoiceSecondsLimit !== null && nextVoiceSeconds > plan.dailyVoiceSecondsLimit) {
-        return {
-          allowed: false,
-          planId: account.planId,
-          reason: `daily voice translation limit reached (${plan.dailyVoiceSecondsLimit}s)`,
-          userMessage: `This server has reached the Free plan daily voice translation limit (${Math.round(plan.dailyVoiceSecondsLimit / 60)} minutes/day).`,
-        };
-      }
-      if (plan.dailyTextCharsLimit !== null && nextTextChars > plan.dailyTextCharsLimit) {
+      if (nextTextChars > plan.dailyTextCharsLimit) {
+        const shouldNotify = await shouldSendBillingNotification(guildId, 'billingBlockedNotifiedAt');
+        if (shouldNotify) await markBillingNotificationSent(guildId, 'billingBlockedNotifiedAt');
         return {
           allowed: false,
           planId: account.planId,
           reason: `daily text translation limit reached (${plan.dailyTextCharsLimit} chars)`,
-          userMessage: `This server has reached the Free plan daily text translation limit (${plan.dailyTextCharsLimit} characters/day).`,
+          userMessage: shouldNotify
+            ? `This server has reached the Free plan daily text translation limit (${plan.dailyTextCharsLimit} characters/day).`
+            : undefined,
         };
       }
-      if (plan.dailyVoiceSecondsLimit !== null) {
-        const remainingSeconds = Math.max(plan.dailyVoiceSecondsLimit - nextVoiceSeconds, 0);
-        if (remainingSeconds <= LOW_VOICE_SECONDS_REMAINING_WARNING) {
-          warningMessage = `This server has about ${Math.ceil(remainingSeconds / 60)} minute(s) of Free plan voice translation left today.`;
-        }
-      }
-      if (plan.dailyTextCharsLimit !== null) {
-        const remainingChars = Math.max(plan.dailyTextCharsLimit - nextTextChars, 0);
-        if (remainingChars <= LOW_TEXT_CHARS_REMAINING_WARNING) {
-          const textWarning = `This server has ${remainingChars} Free plan text character(s) left today.`;
-          warningMessage = warningMessage ? `${warningMessage} ${textWarning}` : textWarning;
-        }
+      const remainingChars = Math.max(plan.dailyTextCharsLimit - nextTextChars, 0);
+      if (remainingChars <= LOW_TEXT_CHARS_REMAINING_WARNING && (await shouldSendBillingNotification(guildId, 'billingWarnedAt'))) {
+        warningMessage = `This server has ${remainingChars} Free plan text character(s) left today.`;
+        await markBillingNotificationSent(guildId, 'billingWarnedAt');
       }
     }
 
@@ -179,22 +179,19 @@ export async function recordExternalApiUsage(usage: ExternalApiUsage): Promise<v
       );
     }
 
-    if (usage.stage === 'stt' || usage.stage === 'llm') {
+    // 连接时长（connected_seconds）不再从这里累加——那是 connection-usage-tracker.ts
+    // 按 5 分钟一次的定时打点独立记的，跟这句话有没有说、STT 调没调用完全无关（见
+    // CLAUDE.md「daily_usage_counters 重设计」）。这里只剩 llm 阶段的 text_chars 要记。
+    if (usage.stage === 'llm') {
       await client.query(
         `
-          insert into daily_usage_counters (guild_id, usage_date, voice_seconds, text_chars)
-          values ($1, $2, $3, $4)
+          insert into daily_guild_usage (guild_id, usage_date, text_chars)
+          values ($1, $2, $3)
           on conflict (guild_id, usage_date) do update
-          set voice_seconds = daily_usage_counters.voice_seconds + excluded.voice_seconds,
-              text_chars = daily_usage_counters.text_chars + excluded.text_chars,
+          set text_chars = daily_guild_usage.text_chars + excluded.text_chars,
               updated_at = now()
         `,
-        [
-          usage.guildId,
-          todayUtc(),
-          usage.stage === 'stt' ? usage.providerAudioDurationSec ?? usage.audioDurationSec ?? 0 : 0,
-          usage.stage === 'llm' ? usage.inputTextChars ?? 0 : 0,
-        ],
+        [usage.guildId, todayUtc(), usage.inputTextChars ?? 0],
       );
     }
 

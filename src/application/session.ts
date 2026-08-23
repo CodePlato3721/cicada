@@ -1,6 +1,7 @@
 import type { Gender } from '../domain/pitch.js';
 import { redisClient } from '../adapter/out/redis/client.js';
 import { createLogger } from '../adapter/out/logger.js';
+import { todayUtc } from '../domain/date.js';
 import { resolveTtsProvider } from './ports/tts.js';
 
 const logger = createLogger('session');
@@ -20,6 +21,10 @@ export interface Session {
   targetLang: string | undefined;
   ttsProvider: string | undefined;
   game: string | undefined;
+  // "今天(UTC)已经被判定超出每日连接时长限额"的日期字符串，connection-usage-tracker.ts
+  // 的定时打点跨过限额线时写入，billing-service.ts 的 checkBillingAllowed 每句话顺带
+  // 读一次（不额外查询，见 checkBillingAllowed 的注释）。跟 todayUtc() 不相等就当没有。
+  voiceLimitBlockedDate: string | undefined;
 }
 
 type SessionHash = Record<string, string>;
@@ -45,6 +50,7 @@ function fromSessionHash(data: SessionHash, speakers: Map<string, SpeakerState>)
     targetLang: data.targetLang,
     ttsProvider: data.ttsProvider,
     game: data.game,
+    voiceLimitBlockedDate: data.voiceLimitBlockedDate,
   };
 }
 
@@ -100,6 +106,7 @@ export async function createSession(guildId: string): Promise<Session> {
     speakerSeq: '0',
     playbackSeq: '0',
   });
+  logger.info({ guildId }, `guild ${guildId} voice session created`);
   return fromSessionHash({ speakerSeq: '0', playbackSeq: '0' }, new Map());
 }
 
@@ -165,11 +172,15 @@ export async function resetSessionSettings(guildId: string): Promise<boolean> {
 }
 
 export async function addSpeaker(guildId: string, userId: string, speakerState: SpeakerState): Promise<boolean> {
-  if (!(await sessionExists(guildId))) return false;
+  if (!(await sessionExists(guildId))) {
+    logger.warn({ guildId, userId }, `cannot assign speaker for ${userId} because guild session is missing`);
+    return false;
+  }
 
   const sequence = await redisClient.hincrby(sessionKey(guildId), 'speakerSeq', 1);
   speakerState.label = `Speaker${sequence}`;
   await saveSpeaker(guildId, userId, speakerState);
+  logger.info({ guildId, userId, who: speakerState.label }, `${userId} assigned to ${speakerState.label}`);
   return true;
 }
 
@@ -207,4 +218,41 @@ export async function listSpeakerEntries(guildId: string): Promise<Array<[string
 
 export async function listSpeakers(guildId: string): Promise<SpeakerState[]> {
   return Array.from((await readSpeakers(guildId)).values());
+}
+
+// Billing 每日限额提醒去重（见 billing-service.js 的 checkBillingAllowed）：字段存的是
+// "上次发过这条提醒的时间戳"，不是布尔值——每次检查时把它的 UTC 日期跟 todayUtc() 比较，
+// 发现已经跨天了就当作没发过（先清掉这个字段，再走跟"从没发过"完全一样的判断逻辑）。
+// 放在 session 的 Redis hash 上而不是单独的字段/Session 接口里，是因为这纯粹是
+// billing-service.js 内部用的去重标记，其它读 session 的地方不需要关心它。
+type BillingNotificationField = 'billingWarnedAt' | 'billingBlockedNotifiedAt';
+
+export async function shouldSendBillingNotification(guildId: string, field: BillingNotificationField): Promise<boolean> {
+  const key = sessionKey(guildId);
+  const sentAt = await redisClient.hget(key, field);
+  if (!sentAt) return true;
+
+  if (sentAt.slice(0, 10) !== todayUtc()) {
+    // 跨天了，清空旧标记，当作今天还没发过
+    await redisClient.hdel(key, field);
+    return true;
+  }
+
+  return false;
+}
+
+export async function markBillingNotificationSent(guildId: string, field: BillingNotificationField): Promise<void> {
+  await redisClient.hset(sessionKey(guildId), field, new Date().toISOString());
+}
+
+// 每日连接时长限额（connection-usage-tracker.ts 的定时打点判定），标记本身就是个
+// 日期字符串（不是布尔），逻辑比 billingWarnedAt 那对还简单——不需要主动清空，
+// 直接跟 todayUtc() 比较是不是同一天就行，见 Session.voiceLimitBlockedDate 的注释。
+export async function markVoiceLimitBlocked(guildId: string): Promise<void> {
+  await redisClient.hset(sessionKey(guildId), 'voiceLimitBlockedDate', todayUtc());
+}
+
+export async function isVoiceLimitBlocked(guildId: string): Promise<boolean> {
+  const value = await redisClient.hget(sessionKey(guildId), 'voiceLimitBlockedDate');
+  return value === todayUtc();
 }

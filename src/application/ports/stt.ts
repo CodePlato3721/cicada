@@ -1,6 +1,8 @@
 import { openStream as deepgramOpenStream } from '../../adapter/out/deepgram/stt.js';
 import { openStream as groqOpenStream } from '../../adapter/out/groq/stt.js';
+import { openStream as azureOpenStream } from '../../adapter/out/azure/stt.js';
 import { createLogger } from '../../adapter/out/logger.js';
+import sttProviderConfig from '../../config/stt-providers.json' with { type: 'json' };
 
 const logger = createLogger('ports/stt');
 
@@ -50,6 +52,7 @@ export type OpenStreamFn = (options?: TranscribeOptions) => SttStream;
 // pre-recorded Whisper 接口，对外表现跟 deepgram 这边的真流式一致，但没有"边说边转录"
 // 的延时收益。
 const PROVIDERS: Record<string, OpenStreamFn> = {
+  azure: azureOpenStream,
   deepgram: deepgramOpenStream,
   groq: groqOpenStream,
 };
@@ -58,11 +61,11 @@ const PROVIDERS: Record<string, OpenStreamFn> = {
 // 挑 groq 是因为那时 groq 是唯一/首个供应商，现在实际启用、真正拿到"边说边转录"这个
 // 延时收益的是 deepgram（见 DESIGN.md），groq 只是接口形状兼容、不是推荐配置，
 // 继续默认指向它没有意义。
-const PROVIDER_NAME = process.env.STT_PROVIDER || 'deepgram';
+const PROVIDER_NAME = sttProviderConfig.provider;
 const impl = PROVIDERS[PROVIDER_NAME];
 
 if (!impl) {
-  throw new Error(`Unknown STT_PROVIDER: "${PROVIDER_NAME}", options: ${Object.keys(PROVIDERS).join(', ')}`);
+  throw new Error(`Unknown STT provider: "${PROVIDER_NAME}", options: ${Object.keys(PROVIDERS).join(', ')}`);
 }
 
 logger.info({ provider: PROVIDER_NAME }, `STT provider: ${PROVIDER_NAME}`);

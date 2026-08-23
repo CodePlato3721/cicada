@@ -66,10 +66,10 @@ async function main(): Promise<void> {
       const result = await dbPool.query(
         `
           select a.guild_id, a.plan_id, a.status, a.balance_usd, a.created_at, a.updated_at,
-                 coalesce(d.voice_seconds, 0) as today_voice_seconds,
+                 coalesce(d.connected_seconds, 0) as today_connected_seconds,
                  coalesce(d.text_chars, 0) as today_text_chars
           from billing_accounts a
-          left join daily_usage_counters d on d.guild_id = a.guild_id and d.usage_date = current_date
+          left join daily_guild_usage d on d.guild_id = a.guild_id and d.usage_date = current_date
           where a.guild_id = $1
         `,
         [guildId],

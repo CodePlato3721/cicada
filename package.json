@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && npm run build:copy-assets",
-    "build:copy-assets": "node -e \"require('fs').cpSync('src/domain/terminology','dist/domain/terminology',{recursive:true});require('fs').cpSync('src/domain/keyterms','dist/domain/keyterms',{recursive:true})\"",
+    "build:copy-assets": "node -e \"require('fs').cpSync('src/domain/terminology','dist/domain/terminology',{recursive:true});require('fs').cpSync('src/domain/keyterms','dist/domain/keyterms',{recursive:true});require('fs').mkdirSync('dist/config',{recursive:true});require('fs').copyFileSync('src/config/tts-voices.json','dist/config/tts-voices.json');require('fs').copyFileSync('src/config/tts-providers.json','dist/config/tts-providers.json');require('fs').copyFileSync('src/config/stt-providers.json','dist/config/stt-providers.json')\"",
     "build:scripts": "tsc -p tsconfig.scripts.json",
     "start": "npm run build && node dist/index.js",
     "billing": "npm run build && node dist/billing-cli.js",
