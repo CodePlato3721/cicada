@@ -8,6 +8,7 @@ function usage(): void {
   console.log(`Usage:
   npm run billing -- migrate
   npm run billing -- seed-prices
+  npm run billing -- reset --yes-drop-everything
   npm run billing -- summary
   npm run billing -- guild <guildId>
   npm run billing -- sessions <guildId> [limit]
@@ -50,6 +51,25 @@ async function main(): Promise<void> {
     case 'seed-prices': {
       const count = await seedProviderPrices();
       console.log(`Seeded ${count} provider price(s).`);
+      break;
+    }
+
+    // 全量重置：drop schema public cascade 把 BILLING_SCHEMA_SQL 建的所有表/索引/
+    // extension 一次性清空（不用一张张手写 drop table，也不会漏掉以后新加的表），
+    // 再 create schema public 建一个空的、当前连接用的角色自动是 owner，不需要额外
+    // grant。之后照常跑 migrate + seed-prices 重建。只在"没有真实用户数据、可以
+    // 全部丢弃"的场景用（比如当前还没上线），要求显式传 --yes-drop-everything，
+    // 打错命令不会误删。
+    case 'reset': {
+      if (!args.includes('--yes-drop-everything')) {
+        throw new Error('This drops every billing table and all data. Re-run as: npm run billing -- reset --yes-drop-everything');
+      }
+      console.log('Dropping public schema (all tables, all data)...');
+      await dbPool.query('drop schema public cascade; create schema public;');
+      await migrateBillingSchema();
+      console.log('Schema recreated.');
+      const count = await seedProviderPrices();
+      console.log(`Seeded ${count} provider price(s). Reset complete — all accounts/usage/session history is gone.`);
       break;
     }
 
