@@ -7,3 +7,5 @@ tests/e2e/output/
 dist/
 .plato/
 .serena/
+plato-workspace/
+.claude/.headroom_wrap_marker.json

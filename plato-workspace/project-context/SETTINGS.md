@@ -1,2 +1,0 @@
-- unit-test-path: tests/unit
-- e2e-test-path: tests/e2e
