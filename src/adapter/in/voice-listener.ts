@@ -7,7 +7,13 @@ import { getKeyterms } from '../../domain/keyterms.js';
 import { clearPlaybackQueue, markMaking } from '../out/playback-queue.js';
 import { saveInputRecording } from '../out/recordings.js';
 import { handleSegment } from '../../application/pipeline.js';
-import { startTrackingConnection, stopTrackingConnection } from '../../application/billing/connection-usage-tracker.js';
+import {
+  hydrateSessionBillingState,
+  syncBillingStateToDb,
+  finalizeSessionLedger,
+  checkSttAllowed,
+  sendSttBlockedNotice,
+} from '../../application/billing/billing-service.js';
 import { openStream, type SttStream, type TranscribeResult } from '../../application/ports/stt.js';
 import {
   createSession,
@@ -71,6 +77,32 @@ const guildListeners = new Map<string, GuildListeners>();
 const guildVoiceRuntimes = new Map<string, GuildVoiceRuntime>();
 const startingSpeakerPipelines = new Set<string>();
 
+// connection-usage-tracker.ts 曾经的 5 分钟定时器角色现在换成这个：不再是"按固定间隔
+// 累加连接时长写 Postgres"，只是单纯"把 Redis 里已经原子累加好的用量快照同步进
+// daily_guild_usage"（billing-service.js 的 syncBillingStateToDb），billing 状态本身
+// 全靠 recordExternalApiUsage 实时维护，这个定时器只负责让 DB 别跟 Redis 差太远，
+// 60 秒一次的粒度足够（真正跨限额线的那一刻已经有单独的立即同步，见
+// recordExternalApiUsage 底部）。
+const BILLING_SYNC_INTERVAL_MS = 60 * 1000;
+const billingSyncTimers = new Map<string, NodeJS.Timeout>();
+
+function startBillingSync(guildId: string): void {
+  stopBillingSync(guildId);
+  const timer = setInterval(() => {
+    void syncBillingStateToDb(guildId).catch((err) => logger.error({ err, guildId }, `Failed to sync billing state for guild ${guildId}`));
+  }, BILLING_SYNC_INTERVAL_MS);
+  timer.unref?.();
+  billingSyncTimers.set(guildId, timer);
+}
+
+function stopBillingSync(guildId: string): void {
+  const timer = billingSyncTimers.get(guildId);
+  if (timer) {
+    clearInterval(timer);
+    billingSyncTimers.delete(guildId);
+  }
+}
+
 function speakerRuntimeKey(guildId: string, userId: string): string {
   return `${guildId}:${userId}`;
 }
@@ -90,7 +122,10 @@ export async function startListening(connection: VoiceConnection, voiceChannel: 
   await stopListening(guildId);
 
   await createSession(guildId);
-  startTrackingConnection(guildId, voiceChannel);
+  // 这场会话唯一一次为了账单目的读 Postgres——把账号状态/套餐/今天已用量缓存进 Redis
+  // session hash，后面每句话的账单判断都只读这份缓存（见 billing-service.js）。
+  await hydrateSessionBillingState(guildId);
+  startBillingSync(guildId);
   guildVoiceRuntimes.set(guildId, { connection, voiceChannel, speakers: new Map() });
 
   const onSpeakingStart = (userId: string) => {
@@ -155,7 +190,11 @@ export async function stopListening(guildId: string): Promise<void> {
   }
 
   guildVoiceRuntimes.delete(guildId);
-  stopTrackingConnection(guildId);
+  stopBillingSync(guildId);
+  // 必须在 deleteSession 清空 Redis 之前调用——这是唯一一个真正拿得到"这场会话完整
+  // 用量"的时刻，算出这场会话的 estimated_cost_usd 写进 billing_session_ledger（见
+  // billing-service.js）。失败了只记日志，不能因为账单收尾失败就卡住 /leave 本身。
+  await finalizeSessionLedger(guildId).catch((err) => logger.error({ err, guildId }, `Failed to finalize session ledger for guild ${guildId}`));
   await deleteSession(guildId);
   clearPlaybackQueue(guildId);
   logger.info({ guildId }, `Stopped listening to guild ${guildId}`);
@@ -315,10 +354,26 @@ async function createSpeakerPipeline(
       try {
         if (job.type === 'chunk') {
           const sessionForStt = sttStream ? undefined : await getSession(guildId);
+          // 账单判断提前到这里（开 STT 流之前），纯同步、读的是上面这行已经 await 好的
+          // session 快照——超线就压根不开 STT 流，不产生这句话的 STT 成本，比"转写完了
+          // 才发现超线"更早拦截（见 billing-service.js 的 checkSttAllowed）。
+          const sttDecision = sessionForStt ? checkSttAllowed(sessionForStt) : undefined;
           const segments = await vad.feed(job.data, {
             onSpeechStart: () => {
               logger.info({ userId }, `${userId} VAD confirmed this is speech, starting to count a sentence`);
               if (!sttStream) {
+                if (sttDecision && !sttDecision.allowed) {
+                  logger.info(
+                    { event: 'stt_blocked_by_billing', guildId, userId, reason: sttDecision.reason },
+                    `${userId} blocked by billing before opening STT stream: ${sttDecision.reason}`,
+                  );
+                  // 不 await：onSpeechStart 是同步回调，vad.feed() 不等它返回的 promise
+                  // （跟下面 openStream() 不被 await 是同一个既有模式）。
+                  void sendSttBlockedNotice(guildId, voiceChannel, sttDecision).catch((err) =>
+                    logger.error({ err, guildId }, 'Failed to send STT-blocked notice'),
+                  );
+                  return; // 不开 STT 流——这句话不会被转写/翻译/播放
+                }
                 const keyterms = getKeyterms(sessionForStt?.game, sessionForStt?.sourceLang);
                 logger.info(
                   {

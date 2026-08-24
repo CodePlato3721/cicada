@@ -36,4 +36,8 @@ export const config = {
   // 才能调整。
   redisCacheTtlSeconds: Number(process.env.TRANSLATE_CACHE_TTL_SECONDS) || 3 * 24 * 60 * 60,
   databaseUrl: required('DATABASE_URL'),
+  // 每天按 guild 滚动的用量审计 JSONL 文件存哪（见 adapter/out/events-log.js），取代了
+  // 原来高频写 Postgres usage_events 表的做法。跟 RECORDINGS_DIR 同一个理由必须显式
+  // 配置——避免这些文件悄悄落到项目源码目录里。
+  eventsDir: required('EVENTS_DIR'),
 };

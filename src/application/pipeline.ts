@@ -12,7 +12,7 @@ import { synthesize } from './ports/tts.js';
 import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
 import { getSession, listSpeakerEntries, saveSpeaker, type SpeakerState } from './session.js';
 import { assignVoice } from './voice-assignment.js';
-import { checkBillingAllowed, recordExternalApiUsage } from './billing/billing-service.js';
+import { checkTranslateAllowed, recordExternalApiUsage } from './billing/billing-service.js';
 import { createLogger } from '../adapter/out/logger.js';
 
 const logger = createLogger('pipeline');
@@ -197,13 +197,7 @@ export async function handleSegment(
       return;
     }
 
-    const billingDecision = await checkBillingAllowed({
-      guildId,
-      sourceLang: session.sourceLang,
-      targetLang,
-      textChars: transcriptText.length,
-      voiceLimitBlockedDate: session.voiceLimitBlockedDate,
-    });
+    const billingDecision = await checkTranslateAllowed(guildId, session, transcriptText.length);
     if (!billingDecision.allowed) {
       logger.info(
         { ...ctx, who, planId: billingDecision.planId, reason: billingDecision.reason },
