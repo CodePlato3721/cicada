@@ -1,0 +1,38 @@
+{
+  "en": {
+    "male": ["en-US-GuyNeural", "en-US-DavisNeural", "en-US-JasonNeural", "en-US-KaiNeural", "en-US-TonyNeural", "en-US-BrandonNeural", "en-US-ChristopherNeural", "en-US-EricNeural", "en-US-JacobNeural", "en-US-RogerNeural", "en-US-SteffanNeural"],
+    "female": ["en-US-AriaNeural", "en-US-JaneNeural", "en-US-LunaNeural", "en-US-SaraNeural", "en-US-NancyNeural", "en-US-AmberNeural", "en-US-AshleyNeural", "en-US-CoraNeural", "en-US-ElizabethNeural", "en-US-JennyNeural", "en-US-MichelleNeural", "en-US-MonicaNeural"]
+  },
+  "fr": {
+    "male": ["fr-FR-AlainNeural", "fr-FR-ClaudeNeural", "fr-FR-JeromeNeural", "fr-FR-MauriceNeural", "fr-FR-YvesNeural"],
+    "female": ["fr-FR-DeniseNeural", "fr-FR-EloiseNeural", "fr-FR-JacquelineNeural"]
+  },
+  "ja": {
+    "male": ["ja-JP-KeitaNeural", "ja-JP-DaichiNeural", "ja-JP-NaokiNeural"],
+    "female": ["ja-JP-NanamiNeural", "ja-JP-AoiNeural", "ja-JP-MayuNeural", "ja-JP-ShioriNeural"]
+  },
+  "de": {
+    "male": ["de-DE-ConradNeural", "de-DE-BerndNeural", "de-DE-KillianNeural", "de-DE-RalfNeural"],
+    "female": ["de-DE-KatjaNeural", "de-DE-AmalaNeural", "de-DE-KlarissaNeural", "de-DE-LouisaNeural", "de-DE-MajaNeural"]
+  },
+  "es": {
+    "male": ["es-ES-AlvaroNeural", "es-ES-ArnauNeural", "es-ES-DarioNeural", "es-ES-TeoNeural"],
+    "female": ["es-ES-ElviraNeural", "es-ES-AbrilNeural", "es-ES-EstrellaNeural", "es-ES-IreneNeural", "es-ES-LaiaNeural", "es-ES-LiaNeural", "es-ES-TrianaNeural", "es-ES-VeraNeural"]
+  },
+  "zh": {
+    "male": ["zh-CN-YunyangNeural", "zh-CN-YunjianNeural", "zh-CN-YunfengNeural", "zh-CN-YunhaoNeural", "zh-CN-YunjieNeural", "zh-CN-YunxiaNeural", "zh-CN-YunyeNeural", "zh-CN-YunzeNeural"],
+    "female": ["zh-CN-XiaoyiNeural", "zh-CN-XiaohanNeural", "zh-CN-XiaomengNeural", "zh-CN-XiaomoNeural", "zh-CN-XiaoqiuNeural", "zh-CN-XiaorouNeural", "zh-CN-XiaoruiNeural", "zh-CN-XiaozhenNeural", "zh-CN-XiaochenNeural", "zh-CN-XiaoyouNeural"]
+  },
+  "ko": {
+    "male": ["ko-KR-InJoonNeural", "ko-KR-BongJinNeural", "ko-KR-GookMinNeural", "ko-KR-HyunsuNeural"],
+    "female": ["ko-KR-SunHiNeural", "ko-KR-JiMinNeural", "ko-KR-SeoHyeonNeural", "ko-KR-SoonBokNeural", "ko-KR-YuJinNeural"]
+  },
+  "pt": {
+    "male": ["pt-BR-AntonioNeural", "pt-BR-FabioNeural", "pt-BR-HumbertoNeural", "pt-BR-JulioNeural", "pt-BR-NicolauNeural", "pt-BR-ValerioNeural"],
+    "female": ["pt-BR-FranciscaNeural", "pt-BR-GiovannaNeural", "pt-BR-ManuelaNeural", "pt-BR-ThalitaNeural", "pt-BR-YaraNeural"]
+  },
+  "ar": {
+    "male": ["ar-SA-HamedNeural", "ar-SA-LaithNeural", "ar-SA-SalmanNeural"],
+    "female": ["ar-SA-ZariyahNeural", "ar-SA-AmalNeural", "ar-SA-HalaNeural", "ar-SA-RanaNeural"]
+  }
+}
