@@ -3,7 +3,7 @@ import { synthesizeSsml } from './client.js';
 import { createLogger } from '../logger.js';
 import { buildTtsUsageFields } from '../usage-log.js';
 import { recordExternalApiUsage } from '../../../application/billing/billing-service.js';
-import voiceCatalog from '../../../config/tts-voices.json' with { type: 'json' };
+import voiceCatalog from '../../../config/tts-voices-azure.json' with { type: 'json' };
 
 const logger = createLogger('azure/tts');
 
@@ -25,14 +25,13 @@ const logger = createLogger('azure/tts');
 // 语言，实测出现过目标语言是中文、却随机抽中葡萄牙语音色去念中文文本，Azure 只能返回
 // 一份近乎空的音频（44 字节，没有实际语音内容），下游 WAV 解析直接报错。语言必须是
 // 分组的第一层，同一门语言内部才按性别再分一层。
-type AzureVoiceCatalog = Record<string, { locale: string; male?: string[]; female?: string[] }>;
-
-export const VOICES_BY_LANG_AND_GENDER: Record<string, VoicesByGender> = Object.fromEntries(
-  Object.entries((voiceCatalog as { azure: AzureVoiceCatalog }).azure).map(([lang, config]) => [lang, {
-    male: config.male,
-    female: config.female,
-  }]),
-);
+// tts-voices-azure.json 现在直接就是 Record<语言, VoicesByGender> 这个形状（没有 locale
+// 字段、也没有外层 "azure" 包裹键）——locale 会从音色名字本身派生（见下面
+// localeFromVoiceName），单独存一份 locale 字段只是重复数据，容易跟音色名字本身的
+// 地区变体改串了却没人发现，索性去掉。这跟 deepgram/tts.ts 的 tts-voices-deepgram.json
+// 是同一个结构，两个供应商都能直接把 JSON import 当 VOICES_BY_LANG_AND_GENDER 用，
+// 不需要各自写一遍转换逻辑。
+export const VOICES_BY_LANG_AND_GENDER: Record<string, VoicesByGender> = voiceCatalog;
 
 // 提供给 synthesize() 内部校验用的扁平列表——校验"这是不是本供应商认识的音色"这件事
 // 不需要知道语言，一个 provider 级别的合法音色集合就够了，跟 VOICES_BY_LANG_AND_GENDER

@@ -1,10 +1,10 @@
 {
   "providersByLanguage": {
-    "en": "azure",
-    "fr": "azure",
-    "ja": "azure",
-    "de": "azure",
-    "es": "azure",
+    "en": "deepgram",
+    "fr": "deepgram",
+    "ja": "deepgram",
+    "de": "deepgram",
+    "es": "deepgram",
     "zh": "azure",
     "ko": "azure",
     "pt": "azure",
