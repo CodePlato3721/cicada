@@ -9,7 +9,7 @@ import { setCachedTranslation } from '../adapter/out/redis/translate-cache.js';
 import type { TranscribeResult } from './ports/stt.js';
 import { translate } from './ports/translate.js';
 import { synthesize } from './ports/tts.js';
-import { enqueuePlayback, skipPlaybackSequence } from '../adapter/out/playback-queue.js';
+import { enqueuePlayback, skipPlaybackSequence, checkBacklogWarning, BACKLOG_WARNING_THRESHOLD } from '../adapter/out/playback-queue.js';
 import { getSession, listSpeakerEntries, saveSpeaker, type SpeakerState } from './session.js';
 import { assignVoice } from './voice-assignment.js';
 import { checkTranslateAllowed, recordExternalApiUsage } from './billing/billing-service.js';
@@ -50,6 +50,16 @@ async function sendBillingBlockedReminder(voiceChannel: VoiceBasedChannel, messa
 
 async function sendBillingWarningReminder(voiceChannel: VoiceBasedChannel, message: string): Promise<void> {
   await voiceChannel.send(`⚠️ ${message}`).catch((err: unknown) => logger.error({ err }, 'Failed to send billing-warning reminder'));
+}
+
+// 播放队列积压提醒：playback-queue.js 的 checkBacklogWarning 已经做了边沿检测（只在
+// "这一波积压刚超过阈值"那一刻返回 true），这里不用再自己去重，直接发。措辞用了
+// BACKLOG_WARNING_THRESHOLD 这个常量而不是硬编码"3"，阈值改了这条消息的文案会自动跟着变。
+const BACKLOG_WARNING_MESSAGE =
+  `🐢 Translation queue is backed up (more than ${BACKLOG_WARNING_THRESHOLD} lines waiting to play) — try speaking a little slower so translations can keep up.`;
+
+async function sendBacklogWarningReminder(voiceChannel: VoiceBasedChannel): Promise<void> {
+  await voiceChannel.send(BACKLOG_WARNING_MESSAGE).catch((err: unknown) => logger.error({ err }, 'Failed to send backlog-warning reminder'));
 }
 
 // 说话人第一次开口时判断性别，纯声学特征、跟 TTS 供应商无关，只需要判一次、
@@ -136,6 +146,16 @@ export async function handleSegment(
 
   let enqueued = false;
   try {
+    // 播放队列积压检查：这一刻（voice-listener.js 已经在这句话进 handleSegment 之前
+    // 调过 markMaking，见 playback-queue.js）能拿到最新的排队深度。不管这句话最终这段
+    // 音频出不出得来，"排队排太长"这件事本身就值得提醒——所以放在最前面，不依赖
+    // 下面 STT/翻译/TTS 是否成功。checkBacklogWarning 内部已经做了边沿检测，这里不用
+    // 关心"是不是已经提醒过"。
+    if (checkBacklogWarning(guildId)) {
+      logger.info({ ...ctx, who }, `${who} playback queue backlog exceeded threshold, sending slow-down reminder`);
+      await sendBacklogWarningReminder(voiceChannel);
+    }
+
     detectSpeakerGender(speakerState, monoFloat32);
     await saveSpeaker(guildId, userId, speakerState);
 
