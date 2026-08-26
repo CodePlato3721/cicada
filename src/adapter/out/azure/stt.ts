@@ -10,13 +10,6 @@ const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
 const BIT_DEPTH = 16;
 
-const LANGUAGE_CODE_MAP: Record<string, string> = {
-  zh: 'zh-TW',
-  en: 'en-US',
-  ko: 'ko-KR',
-  ar: 'ar-SA',
-};
-
 class AzureSttStream implements SttStream {
   private chunks: Buffer[] = [];
   private options: TranscribeOptions;
@@ -32,7 +25,14 @@ class AzureSttStream implements SttStream {
   async close(): Promise<TranscribeResult> {
     const startedAt = Date.now();
     const pcm = Buffer.concat(this.chunks);
-    const language = this.options.language ? LANGUAGE_CODE_MAP[this.options.language] ?? this.options.language : undefined;
+    // 2026-08-26 起 options.language 直接是具体 locale（如 'zh-TW'/'en-US'，见
+    // ports/stt.js 的 SUPPORTED_SOURCE_LANGS，这份列表照抄自 Deepgram 官方支持的
+    // locale 全集），原样透传——不再需要一张"基础码 → 具体 locale"的映射表。这份
+    // locale 集合是按 Deepgram 的格式给的，不保证每一个都精确匹配 Azure 自己的
+    // locale 命名（两家大部分重合，个别生僻地区变体可能对不上），但 Azure 目前是
+    // 未启用的备用供应商（STT_PROVIDER=deepgram），没必要为一个用不到的供应商去
+    // 精确核对它自己的 locale 列表，真要切回 Azure 时再核实调整。
+    const language = this.options.language;
 
     if (!language) {
       logger.warn(

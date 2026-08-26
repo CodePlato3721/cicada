@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { getSession, setSourceLang, setTargetLang } from '../../../application/session.js';
-import { SOURCE_LANG_CHOICES, TARGET_LANG_CHOICES } from './language-choices.js';
+import { SUPPORTED_SOURCE_LANGS } from '../../../application/ports/stt.js';
+import { autocompleteLangOption, SUPPORTED_TARGET_LOCALES } from './language-choices.js';
 
 export const data = new SlashCommandBuilder()
   .setName('lang')
@@ -8,21 +9,43 @@ export const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('source')
-      .setDescription('Source language: the language the speaker uses')
+      .setDescription('Source language: the language the speaker uses (type to search, e.g. "english" or "en-us")')
       .setRequired(false)
-      .addChoices(...SOURCE_LANG_CHOICES),
+      .setAutocomplete(true),
   )
   .addStringOption((option) =>
     option
       .setName('target')
-      .setDescription('Target language: what to translate into (limited by TTS voice coverage)')
+      .setDescription('Target language: what to translate into (type to search, e.g. "spanish" or "es")')
       .setRequired(false)
-      .addChoices(...TARGET_LANG_CHOICES),
+      .setAutocomplete(true),
   );
+
+// source 和 target 都改成 autocomplete 之后（见 language-choices.js 顶部注释——source
+// 79 个 locale、target 54 个语言，都超过 Discord addChoices 25 个上限），/lang 和
+// /config 共用同一个过滤逻辑。
+export const autocomplete = autocompleteLangOption;
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const source = interaction.options.getString('source');
   const target = interaction.options.getString('target');
+
+  // autocomplete 不像 addChoices，Discord 不会在服务端强制最终提交值必须来自候选列表
+  // （见 language-choices.js 的 autocompleteLangOption 注释）——这里必须手动校验一遍。
+  if (source && !SUPPORTED_SOURCE_LANGS.includes(source)) {
+    await interaction.reply({
+      content: `Unrecognized source language: "${source}". Pick one from the autocomplete suggestions while typing.`,
+      ephemeral: true,
+    });
+    return;
+  }
+  if (target && !SUPPORTED_TARGET_LOCALES.includes(target)) {
+    await interaction.reply({
+      content: `Unrecognized target language: "${target}". Pick one from the autocomplete suggestions while typing.`,
+      ephemeral: true,
+    });
+    return;
+  }
 
   const session = await getSession(interaction.guildId!);
   if (!session) {

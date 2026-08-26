@@ -13,6 +13,9 @@ export const config = {
   groqApiKey: process.env.GROQ_API_KEY,
   // 翻译供应商备用选项（TRANSLATE_PROVIDER=deepseek 时才需要），见 adapter/out/deepseek/
   deepseekApiKey: process.env.DEEPSEEK_API_KEY,
+  // 翻译供应商（TRANSLATE_PROVIDER=openai 时才需要，见 adapter/out/openai/），
+  // 控制台：platform.openai.com/api-keys
+  openaiApiKey: process.env.OPENAI_API_KEY,
   // STT/TTS 供应商备用选项（STT_PROVIDER=deepgram 或 TTS 路由到 deepgram 时才需要）
   deepgramApiKey: process.env.DEEPGRAM_API_KEY,
   // TTS 供应商（zh/ko/pt/ar 目标语言路由到 azure 时才需要，见 ports/tts.js 的 TTS_PROVIDER_BY_LANG）

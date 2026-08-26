@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { GAMES } from './games.js';
+import { toBaseLang } from './language.js';
 
 // STT 识别关键词增强（目前只有 Deepgram 的 keyterm prompting 用得上，见
 // adapter/out/deepgram/stt.ts）用的词表——跟 domain/terminology.ts 那套翻译用的
@@ -58,8 +59,12 @@ const DEFAULT_KEYTERM_LIMIT = Number(process.env.STT_KEYTERM_LIMIT) || 50;
 // 不是错误状态），都返回空数组，调用方（voice-listener.js）不需要额外判空，也不需要
 // 像以前那样自己判断"这门语言支不支持关键词"再决定要不要调用。
 export function getKeyterms(gameId: string | undefined, lang: string | undefined, limit: number = DEFAULT_KEYTERM_LIMIT): string[] {
-  if (!gameId || !lang) return [];
-  const terms = KEYTERMS_BY_GAME.get(gameId)?.[lang];
+  // lang（调用方传的通常是 session.sourceLang）2026-08-26 起是具体 locale（如
+  // 'zh-TW'），词典文件按语言家族分组、不分地区，查表前先还原成基础码（见
+  // domain/language.js）。
+  const baseLang = toBaseLang(lang);
+  if (!gameId || !baseLang) return [];
+  const terms = KEYTERMS_BY_GAME.get(gameId)?.[baseLang];
   if (!terms) return [];
   return terms.slice(0, limit);
 }

@@ -27,7 +27,7 @@ export class StreamingVad {
 
   static async create(): Promise<StreamingVad> {
     const model = await SileroSession.create();
-    const silenceMs = Number(process.env.VAD_SILENCE_MS ?? 700);
+    const silenceMs = Number(process.env.VAD_SILENCE_MS ?? 500);
 
     const frameProcessor = new FrameProcessor(
       (frame) => model.process(frame),
