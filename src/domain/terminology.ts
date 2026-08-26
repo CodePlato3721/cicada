@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import OpenCC from 'opencc-js';
 import { GAMES } from './games.js';
+import { toBaseLang } from './language.js';
 
 // STT 就算传了 language=zh-TW，也不保证每次都吐繁体——偶尔会混进简体字，跟词典
 // （繁体来源）字符串对不上，术语检测会静默漏掉。这里把中文源文本先正规化成繁体
@@ -125,12 +126,15 @@ export function applyTerminology(
 ): ApplyTerminologyResult {
   if (!text || !sourceLang || !game) return { text, hitCount: 0 };
 
-  const automaton = automatons.get(game)?.get(sourceLang);
+  // sourceLang 现在是具体 locale（如 'zh-TW'/'ar-EG'，见 ports/stt.js 的
+  // SUPPORTED_SOURCE_LANGS），词典按语言家族维护、不分地区，查表前先还原成基础码。
+  const baseSourceLang = toBaseLang(sourceLang);
+  const automaton = automatons.get(game)?.get(baseSourceLang!);
   if (!automaton) return { text, hitCount: 0 };
 
   // 中文先正规化成繁体再匹配（词典数据是繁体来源），不管 STT 这次吐的是简体还是
   // 繁体都能对上；后面不再用调用方传进来的原始 text，全程用正规化后的版本。
-  if (sourceLang === 'zh') text = toTraditional(text);
+  if (baseSourceLang === 'zh') text = toTraditional(text);
 
   const { regex, lookup } = automaton;
   regex.lastIndex = 0; // 正则是全局(g)、有状态的，跨调用复用前必须重置，否则从上次扫到的位置继续扫
@@ -143,7 +147,7 @@ export function applyTerminology(
     const matched = match[0];
     const entry = lookup.get(matched.toLowerCase());
     const targetWord =
-      sourceLang === targetLang || !targetLang ? undefined : canonicalForm(entry?.translations?.[targetLang]);
+      baseSourceLang === targetLang || !targetLang ? undefined : canonicalForm(entry?.translations?.[targetLang]);
 
     out += text.slice(lastEnd, match.index);
     if (targetWord) {
