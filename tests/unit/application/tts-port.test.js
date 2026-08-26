@@ -18,8 +18,8 @@ test('resolveTtsProvider：没有登记的语言返回 undefined', () => {
   assert.equal(resolveTtsProvider('xx'), undefined);
 });
 
-test('TTS_PROVIDER_BY_LANG：覆盖 9 种目标语言', () => {
-  assert.equal(Object.keys(TTS_PROVIDER_BY_LANG).length, 9);
+test('TTS_PROVIDER_BY_LANG：覆盖 54 种目标语言（2026-08-26 扩展，deepgram 7 个 + azure 47 个）', () => {
+  assert.equal(Object.keys(TTS_PROVIDER_BY_LANG).length, 54);
 });
 
 test('getVoicesByGender：已知供应商+语言返回对应的音色池', () => {

@@ -30,7 +30,15 @@ const PROVIDERS: Record<string, TtsProviderModule> = { groq, deepgram, azure };
 // 目标语言 -> 该用哪个 TTS 供应商播报。这张表是"目标语言实际能不能出声音"的唯一权威
 // 判断依据——一个目标语言不在这张表里，就算翻译文字正常生成了，也不会有语音播报
 // （pipeline.js 会打日志说明这一点，不是静默失败）。
-export const TTS_PROVIDER_BY_LANG: Record<string, string> = ttsProviderConfig.providersByLanguage;
+export const TTS_PROVIDER_BY_LANG: Record<string, string> = ttsProviderConfig.ttsProviders;
+
+// 2026-08-26：TTS_PROVIDER_BY_LANG 从 9 个目标语言扩到 54 个（deepgram 7 个 + azure 47
+// 个,跟 STT 那边扩到 79 个 locale 是同一次改动的下半场——见 ports/stt.js 的
+// SUPPORTED_SOURCE_LANGS 顶部注释）之后，target 选项也超过了 Discord addChoices 的
+// 25 个上限，跟 source 一样改用 autocomplete（见 commands/language-choices.js）。
+// 这里导出这份列表给 execute() 做服务端校验用——autocomplete 不像 addChoices，
+// Discord 不会强制用户最终提交的值必须来自候选列表。
+export const SUPPORTED_TARGET_LANGS = Object.keys(TTS_PROVIDER_BY_LANG);
 
 // 目标语言 -> 供应商名（字符串），没有映射就返回 undefined——调用方（session.js）据此
 // 判断"这个目标语言到底有没有 TTS 供应商能播"。
