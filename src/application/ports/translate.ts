@@ -1,5 +1,6 @@
 import { translate as groqTranslate } from '../../adapter/out/groq/translate.js';
 import { translate as deepseekTranslate } from '../../adapter/out/deepseek/translate.js';
+import { translate as openaiTranslate } from '../../adapter/out/openai/translate.js';
 import { createLogger } from '../../adapter/out/logger.js';
 
 const logger = createLogger('ports/translate');
@@ -25,6 +26,7 @@ export type TranslateFn = (text: string, targetLang: string, options?: Translate
 const PROVIDERS: Record<string, TranslateFn> = {
   groq: groqTranslate,
   deepseek: deepseekTranslate,
+  openai: openaiTranslate,
 };
 
 const PROVIDER_NAME = process.env.TRANSLATE_PROVIDER || 'groq';
