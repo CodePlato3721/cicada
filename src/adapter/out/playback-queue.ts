@@ -32,14 +32,21 @@ interface QueueState {
   items: QueueItem[]; // 按 sequence 严格递增排列，队首永远是最早说的那句
   connection: VoiceConnection;
   running: boolean;
+  // 这一波积压期间是否已经提醒过"说慢点"——见 checkBacklogWarning。
+  backlogWarned: boolean;
 }
 
 const queues = new Map<string, QueueState>(); // guildId -> QueueState
 
+// 排队等播的条目（不管是 making 还是 ready，只要还没被 drain() 播出去/丢弃）超过这个数，
+// 就认为翻译流水线跟不上说话速度了。3 是拍脑袋的初始值，不是压测出来的，如果实测偏松/
+// 偏紧，调这一个常量就行，不用改调用方。
+const BACKLOG_WARNING_THRESHOLD = 3;
+
 function getOrCreateQueueState(guildId: string, connection: VoiceConnection): QueueState {
   let state = queues.get(guildId);
   if (!state) {
-    state = { items: [], connection, running: false };
+    state = { items: [], connection, running: false, backlogWarned: false };
     queues.set(guildId, state);
   }
   state.connection = connection; // 万一中途重连，保持引用最新
@@ -62,6 +69,26 @@ export function markMaking(guildId: string, connection: VoiceConnection, sequenc
     'Playback sequence marked as making',
   );
 }
+
+// 边沿检测："这一波积压是不是刚超过阈值"——不是"现在是不是超过阈值"。voice-listener.js
+// 在每次 markMaking 之后调用一次：如果队列条目数超过 BACKLOG_WARNING_THRESHOLD 且这一波
+// 积压还没提醒过，返回 true（调用方据此发一条频道文字提示）并标记 backlogWarned，之后
+// 队列继续涨也不会再返回 true——不然积压持续几十句话就是几十条重复消息刷屏频道（同一类
+// "重复通知"的坑 billing 每日限额提醒也踩过，见 session.js 的 shouldSendBillingNotification，
+// 那边按"今天发过一次就不再发"去重，这里按"这一波积压发过一次就不再发"去重，去重维度
+// 不同但目的一样）。backlogWarned 在 drain() 把积压清回阈值以下时重置，下一波新的积压
+// 会重新提醒一次。
+export function checkBacklogWarning(guildId: string): boolean {
+  const state = queues.get(guildId);
+  if (!state) return false;
+  if (state.items.length > BACKLOG_WARNING_THRESHOLD && !state.backlogWarned) {
+    state.backlogWarned = true;
+    return true;
+  }
+  return false;
+}
+
+export { BACKLOG_WARNING_THRESHOLD };
 
 // pipeline.js 的 handleSegment 真的产出了要播放的音频时调用。理论上这个 sequence 早就
 // 该在 markMaking 时占过位了——找不到条目是防御性兜底（比如漏调了 markMaking），
@@ -131,6 +158,12 @@ async function drain(guildId: string): Promise<void> {
       { guildId, pendingSequences: state.items.map((i) => `${i.sequence}:${i.status}`) },
       'Playback queue waiting for earlier sequence',
     );
+  }
+  // 积压清回阈值以下了，重置提醒标记——下一波积压（哪怕是同一个 guild 短时间内再次
+  // 涨上去）会重新触发一次 checkBacklogWarning，不会因为"这个 guild 曾经提醒过一次"
+  // 就永远不再提醒。
+  if (state.items.length <= BACKLOG_WARNING_THRESHOLD) {
+    state.backlogWarned = false;
   }
   state.running = false;
 }
