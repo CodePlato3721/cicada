@@ -13,13 +13,6 @@ const ENCODING = 'linear16';
 const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
 
-// 跟 pre-recorded 时代（deepgram/stt.js 旧版）同一份映射：Deepgram 文档建议中文用
-// 更具体的 zh-CN/zh-TW，这里固定用繁体（zh-TW）——理由见 CLAUDE.md「供应商可切换」
-// 一节（项目排除中国大陆用户，中文用户以繁体为主，术语库译法也是繁体来源）。
-const LANGUAGE_CODE_MAP: Record<string, string> = {
-  zh: 'zh-TW',
-};
-
 interface DeepgramStreamingMessage {
   type?: string;
   is_final?: boolean;
@@ -50,7 +43,11 @@ function buildUrl({ language, keyterms }: TranscribeOptions): string {
     punctuate: 'true',
   });
   if (language) {
-    params.set('language', LANGUAGE_CODE_MAP[language] ?? language);
+    // 2026-08-26 起 language 直接是具体 BCP-47 locale（如 'zh-TW'/'en-US'，见
+    // ports/stt.js 的 SUPPORTED_SOURCE_LANGS——这份列表本身就是照抄 Deepgram 官方
+    // 支持的 STT locale 全集），不再是笼统的 'zh' 这种基础码，不需要额外的映射层
+    // 把基础码翻成具体 locale，原样透传给 Deepgram 就是它期望的格式。
+    params.set('language', language);
   } else {
     params.set('detect_language', 'true');
   }
