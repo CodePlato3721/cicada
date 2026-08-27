@@ -1,0 +1,48 @@
+{
+  "plans": [
+    {
+      "id": "starter",
+      "name": "Starter",
+      "monthlyPriceUsd": 0.99,
+      "highlight": false,
+      "isDefault": false,
+      "dailyMinutes": 30,
+      "languageCount": 9,
+      "languages": ["zh", "fr", "ja", "de", "en", "ko", "ar", "es", "pt"],
+      "dailyTextChars": 3000
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "monthlyPriceUsd": 5.99,
+      "highlight": true,
+      "isDefault": false,
+      "dailyMinutes": 120,
+      "languageCount": 54,
+      "languages": null,
+      "dailyTextChars": 20000
+    },
+    {
+      "id": "unlimited",
+      "name": "Ultimate",
+      "monthlyPriceUsd": 29.99,
+      "highlight": false,
+      "isDefault": false,
+      "dailyMinutes": null,
+      "languageCount": 54,
+      "languages": null,
+      "dailyTextChars": null
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "monthlyPriceUsd": 0,
+      "highlight": false,
+      "isDefault": true,
+      "dailyMinutes": 120,
+      "languageCount": 55,
+      "languages": null,
+      "dailyTextChars": 20000
+    }
+  ]
+}

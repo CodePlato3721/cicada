@@ -4,6 +4,7 @@ import { createLogger } from '../adapter/out/logger.js';
 import { todayUtc } from '../domain/date.js';
 import { toBaseLang } from '../domain/language.js';
 import { resolveTtsProvider } from './ports/tts.js';
+import { DEFAULT_PLAN_ID } from './billing/plans.js';
 
 const logger = createLogger('session');
 
@@ -76,7 +77,7 @@ function fromSessionHash(data: SessionHash, speakers: Map<string, SpeakerState>)
     targetLang: data.targetLang,
     ttsProvider: data.ttsProvider,
     game: data.game,
-    planId: data.planId ?? 'free',
+    planId: data.planId ?? DEFAULT_PLAN_ID,
     accountStatus: data.accountStatus ?? 'active',
     sttSecondsUsedToday: Number(data.sttSecondsUsedToday ?? 0),
     textCharsUsedToday: Number(data.textCharsUsedToday ?? 0),

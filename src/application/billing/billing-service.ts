@@ -17,7 +17,7 @@ import {
   clearSessionUsageBreakdown,
   type Session,
 } from '../session.js';
-import { BILLING_PLANS } from './plans.js';
+import { BILLING_PLANS, DEFAULT_PLAN } from './plans.js';
 import { calculateSessionCostUsd } from './cost-calculator.js';
 import type { BillingDecision, BillingPlanId, ExternalApiUsage } from './types.js';
 
@@ -25,7 +25,7 @@ const logger = createLogger('billing');
 const LOW_TEXT_CHARS_REMAINING_WARNING = 500;
 
 function planFor(session: Pick<Session, 'planId'>) {
-  return BILLING_PLANS[session.planId as BillingPlanId] ?? BILLING_PLANS.free;
+  return BILLING_PLANS[session.planId as BillingPlanId] ?? DEFAULT_PLAN;
 }
 
 // 剩余时长/剩余字符 = 套餐上限（代码常量，plans.ts）- 今天已用量。只在这一处算，
@@ -37,7 +37,7 @@ export function remainingForPlan(
   sttSecondsUsed: number,
   textCharsUsed: number,
 ): { sttSecondsRemaining: number | null; textCharsRemaining: number | null } {
-  const plan = BILLING_PLANS[planId as BillingPlanId] ?? BILLING_PLANS.free;
+  const plan = BILLING_PLANS[planId as BillingPlanId] ?? DEFAULT_PLAN;
   return {
     sttSecondsRemaining: plan.dailySttSecondsLimit === null ? null : Math.max(plan.dailySttSecondsLimit - sttSecondsUsed, 0),
     textCharsRemaining: plan.dailyTextCharsLimit === null ? null : Math.max(plan.dailyTextCharsLimit - textCharsUsed, 0),
@@ -46,21 +46,22 @@ export function remainingForPlan(
 
 // export：/join（hydrateSessionBillingState）、/leave（finalizeSessionLedger）、billing-cli.js
 // 都要拿"guild 第一次出现就顺手建账号"这同一份逻辑，不各自另写一份容易走偏。首次插入
-// 顺手把剩余额度物化列初始化成 free 套餐（新账号默认套餐）的满额——之后已存在的账号
-// on conflict 只碰 updated_at，不会拿这个默认值覆盖掉已经算好的真实剩余量。
+// 顺手把剩余额度物化列初始化成默认套餐（DEFAULT_PLAN，见 plans.ts）的满额——之后已存在
+// 的账号 on conflict 只碰 updated_at，不会拿这个默认值覆盖掉已经算好的真实剩余量。数据库
+// 那边 plan_id 列自己也有默认值（见 migrations.ts），两处默认值必须是同一个套餐，否则
+// "guild 第一次出现"和"这行数据本来就该有的默认值"会对不上。
 export async function ensureAccount(
   client: { query: typeof dbPool.query },
   guildId: string,
-): Promise<{ id: string; planId: 'free' | 'server'; status: string }> {
-  const freePlan = BILLING_PLANS.free;
-  const result = await client.query<{ id: string; plan_id: 'free' | 'server'; status: string }>(
+): Promise<{ id: string; planId: BillingPlanId; status: string }> {
+  const result = await client.query<{ id: string; plan_id: BillingPlanId; status: string }>(
     `
       insert into billing_accounts (guild_id, stt_seconds_remaining, text_chars_remaining)
       values ($1, $2, $3)
       on conflict (guild_id) do update set updated_at = now()
       returning id, plan_id, status
     `,
-    [guildId, freePlan.dailySttSecondsLimit, freePlan.dailyTextCharsLimit],
+    [guildId, DEFAULT_PLAN.dailySttSecondsLimit, DEFAULT_PLAN.dailyTextCharsLimit],
   );
   const row = result.rows[0];
   return { id: row.id, planId: row.plan_id, status: row.status };
@@ -157,7 +158,7 @@ export function checkSttAllowed(session: Pick<Session, 'planId' | 'accountStatus
       allowed: false,
       planId: plan.id,
       reason: 'daily STT time limit reached',
-      userMessage: `This server has reached the Free plan daily voice translation time limit (${Math.round(plan.dailySttSecondsLimit / 60)} minutes/day). Voice translation is paused until it resets at UTC midnight.`,
+      userMessage: `This server has reached the ${plan.name} plan daily voice translation time limit (${Math.round(plan.dailySttSecondsLimit / 60)} minutes/day). Voice translation is paused until it resets at UTC midnight.`,
     };
   }
 
@@ -198,11 +199,12 @@ export async function checkTranslateAllowed(guildId: string, session: Session, t
     Boolean(lang),
   );
   if (plan.allowedLanguageCodes && languages.some((lang) => !plan.allowedLanguageCodes?.has(lang))) {
+    const supportedList = [...plan.allowedLanguageCodes].map((lang) => lang.toUpperCase()).join(', ');
     return {
       allowed: false,
       planId: plan.id,
       reason: `plan ${plan.id} does not include ${languages.join('/')} translation`,
-      userMessage: `This server is on the Free plan, which only supports ZH, EN, ES, JA, and KO. ${session.sourceLang ?? '?'} -> ${session.targetLang ?? '?'} requires the Server plan.`,
+      userMessage: `This server is on the ${plan.name} plan, which only supports ${supportedList}. ${session.sourceLang ?? '?'} -> ${session.targetLang ?? '?'} requires a higher-tier plan.`,
     };
   }
 
@@ -224,13 +226,13 @@ export async function checkTranslateAllowed(guildId: string, session: Session, t
         planId: plan.id,
         reason: `daily text translation limit reached (${plan.dailyTextCharsLimit} chars)`,
         userMessage: shouldNotify
-          ? `This server has reached the Free plan daily text translation limit (${plan.dailyTextCharsLimit} characters/day).`
+          ? `This server has reached the ${plan.name} plan daily text translation limit (${plan.dailyTextCharsLimit} characters/day).`
           : undefined,
       };
     }
     const remainingChars = Math.max(plan.dailyTextCharsLimit - nextTextChars, 0);
     if (remainingChars <= LOW_TEXT_CHARS_REMAINING_WARNING && (await shouldSendBillingNotification(guildId, 'billingWarnedAt'))) {
-      warningMessage = `This server has ${remainingChars} Free plan text character(s) left today.`;
+      warningMessage = `This server has ${remainingChars} ${plan.name} plan text character(s) left today.`;
       await markBillingNotificationSent(guildId, 'billingWarnedAt');
     }
   }
