@@ -1,4 +1,13 @@
 import { dbPool } from './client.js';
+import { BILLING_PLANS, DEFAULT_PLAN_ID } from '../../../application/billing/plans.js';
+
+// check 约束的合法 plan_id 列表、default 默认值都从 pricing-plans.json 派生（经
+// plans.ts 转换），不在这条 SQL 里手写——新增/下架套餐只改那一份 JSON，这里的约束
+// 自动跟着变，不会出现"JSON 里已经加了新套餐，但数据库这层 check 约束还在拒绝它"
+// 这种两处不同步。plan_id 列表按 Object.keys 的顺序拼进 SQL 字符串（在 JS 里插值，
+// 不是 SQL 参数化——这里没有用户输入，只有编译期就固定下来的套餐 id，不存在注入风险）。
+const PLAN_IDS = Object.keys(BILLING_PLANS);
+const PLAN_ID_CHECK_LIST = PLAN_IDS.map((id) => `'${id}'`).join(', ');
 
 export const BILLING_SCHEMA_SQL = `
 create extension if not exists pgcrypto;
@@ -34,10 +43,22 @@ alter table if exists billing_accounts rename column balance_usd to lifetime_cos
 alter table if exists billing_accounts add column if not exists stt_seconds_remaining numeric(12, 3);
 alter table if exists billing_accounts add column if not exists text_chars_remaining integer;
 
+-- 2026-08-26：套餐从硬编码的两档（free/server）换成 pricing-plans.json 定义的三档
+-- （starter/pro/unlimited），plan_id 的合法取值和默认值不再手写在这条 SQL 里，从
+-- plans.ts 读出来插值（见上面 PLAN_ID_CHECK_LIST/DEFAULT_PLAN_ID）。Postgres 不支持
+-- 直接改 check 约束的内容，只能先删再建；约束名用的是 Postgres 默认命名规则
+-- （<table>_<column>_check），这张表建表时没有显式命名过约束。老部署如果还有
+-- plan_id = 'free' 或 'server' 的行，这条 add constraint 会失败（这两个值不再是合法
+-- 套餐）——目前还没有真实付费用户数据（见 CLAUDE.md），线上库直接用 billing-cli
+-- 的 reset 命令清空重建即可，不需要额外写一次性的数据迁移脚本。
+alter table if exists billing_accounts alter column plan_id set default '${DEFAULT_PLAN_ID}';
+alter table if exists billing_accounts drop constraint if exists billing_accounts_plan_id_check;
+alter table if exists billing_accounts add constraint billing_accounts_plan_id_check check (plan_id in (${PLAN_ID_CHECK_LIST}));
+
 create table if not exists billing_accounts (
   id uuid primary key default gen_random_uuid(),
   guild_id text not null unique,
-  plan_id text not null default 'free' check (plan_id in ('free', 'server')),
+  plan_id text not null default '${DEFAULT_PLAN_ID}' check (plan_id in (${PLAN_ID_CHECK_LIST})),
   status text not null default 'active' check (status in ('active', 'suspended')),
   lifetime_cost_usd numeric(12, 6) not null default 0,
   stt_seconds_remaining numeric(12, 3),
