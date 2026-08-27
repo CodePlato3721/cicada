@@ -15,8 +15,9 @@ import { toBaseLang } from './language.js';
 // 中文时是扁平数组，调用方（voice-listener.js）用 `sourceLang === 'zh'` 手动判断要不要
 // 传关键词，加一种源语言的关键词支持就要在调用方多写一个条件分支，不可扩展。现在跟
 // terminology.js 的按语言分组同一个思路：一个游戏一个文件，文件内部按 SUPPORTED_SOURCE_LANGS
-// 里的语言码分组，缺某个语言的条目就是这门语言暂时没有维护关键词，getKeyterms 对应
-// 返回空数组，不报错——不要求每个游戏在每种源语言下都必须有词表。
+// 里的语言码分组，不要求每个游戏在每种源语言下都必须有词表——缺某个语言的条目就是这门
+// 语言暂时没有专门维护，getKeyterms 会回退到 'en' 词表（见下面 getKeyterms 内部的说明），
+// 连 'en' 都没有才真正返回空数组，不报错。
 //
 // 一个游戏一个文件，src/domain/keyterms/<game_id>.json。games.js 声明了某个 game_id
 // 但对应文件不存在，启动时直接报错（跟 terminology.js 同一个模式，不允许静默失效）。
@@ -55,8 +56,7 @@ const DEFAULT_KEYTERM_LIMIT = Number(process.env.STT_KEYTERM_LIMIT) || 50;
 // 取某个"游戏 + 源语言"组合下排在前面的 N 个词——词表本身按重要性人工排序（维护时
 // 把更值得优先保证识别准确率的词放前面），截断策略故意选"按文件顺序取前 N 个"，
 // 不在运行时做任何重要性打分/排序，最简单、行为可预测。
-// gameId/lang 任一缺失，或者这个游戏在这门语言下没有维护关键词（还没来得及整理，
-// 不是错误状态），都返回空数组，调用方（voice-listener.js）不需要额外判空，也不需要
+// gameId/lang 任一缺失都返回空数组，调用方（voice-listener.js）不需要额外判空，也不需要
 // 像以前那样自己判断"这门语言支不支持关键词"再决定要不要调用。
 export function getKeyterms(gameId: string | undefined, lang: string | undefined, limit: number = DEFAULT_KEYTERM_LIMIT): string[] {
   // lang（调用方传的通常是 session.sourceLang）2026-08-26 起是具体 locale（如
@@ -64,7 +64,17 @@ export function getKeyterms(gameId: string | undefined, lang: string | undefined
   // domain/language.js）。
   const baseLang = toBaseLang(lang);
   if (!gameId || !baseLang) return [];
-  const terms = KEYTERMS_BY_GAME.get(gameId)?.[baseLang];
+
+  const byLang = KEYTERMS_BY_GAME.get(gameId);
+  // source 语言现在有 79 个 locale（见 ports/stt.js 的 SUPPORTED_SOURCE_LANGS），对应
+  // 几十种语言家族，不可能每种都手工整理一份 wiki 来源的词表——大多数语言根本没有这类
+  // 游戏的本地化资料。这些语言的玩家提到英雄名/活动名这类专有名词时，实际上普遍是直接
+  // 说英文原名（很多地区本来就没有官方本地化译名可用），所以没有专门维护词表的语言统一
+  // 回退到 'en' 词表，而不是返回空数组——空数组等于放弃这些语言的关键词增强，'en' 兜底
+  // 至少覆盖了"很可能确实是这么说的"这个大概率情况。'en' 本身也没整理（这个游戏还完全
+  // 没有关键词数据）才真正返回空数组。某个语言想明确表示"不要 en 兜底"，在文件里显式写
+  // `"xx": []` 即可——空数组本身是有值的（不是 undefined），不会触发下面的回退。
+  const terms = byLang?.[baseLang] ?? (baseLang === 'en' ? undefined : byLang?.en);
   if (!terms) return [];
   return terms.slice(0, limit);
 }
