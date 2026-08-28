@@ -12,7 +12,12 @@
 -- 这里不用 if not exists 保护——Flyway 靠自己的 flyway_schema_history 表保证每个版本
 -- 只执行一次，不需要再靠 SQL 语句自己防重复执行，那是旧的手写累积脚本方案的做法。
 
-create extension if not exists pgcrypto;
+-- 显式指定 schema，不依赖 search_path 自动解析——生产库上遇到过 CREATE EXTENSION（不同于
+-- 普通 CREATE TABLE）在默认 search_path("$user", public，"$user" 对应的 cicada 这个 schema
+-- 不存在)下解析不到目标 schema、报 "no schema been selected to create in" 的问题，本地
+-- Docker 测试没复现是因为本地 cicada 角色是超级用户，不受这条限制。加上 `schema public`
+-- 绕开这个含糊的隐式解析，不管具体是权限问题还是解析逻辑本身的坑，显式指定都更稳妥。
+create extension if not exists pgcrypto schema public;
 
 -- plan_id 的合法取值和默认值跟 src/config/pricing-plans.json 手动保持一致（Flyway 迁移
 -- 文件是纯 SQL，跑的时候不会去读那份 JSON——这里的字面量是 pricing-plans.json 当前内容
