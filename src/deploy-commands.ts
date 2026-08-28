@@ -7,7 +7,6 @@ import * as lang from './adapter/in/commands/lang.js';
 import * as game from './adapter/in/commands/game.js';
 import * as reset from './adapter/in/commands/reset.js';
 import * as configCommand from './adapter/in/commands/config.js';
-import * as setting from './adapter/in/commands/setting.js';
 
 // 稳定功能：验证过没问题、打算对外正式开放的命令。全局注册只会推这个列表。
 const stableCommands = [
@@ -23,7 +22,6 @@ const stableCommands = [
 // /test 是纯粹用来验证"播放 PCM 到语音频道"链路本身通不通的调试工具，不是产品功能。
 const devOnlyCommands = [
   test.data.toJSON(),
-  setting.data.toJSON(),
 ];
 
 const rest = new REST().setToken(config.discordToken);
