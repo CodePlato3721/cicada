@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { dbPool, ensureDatabaseReady } from './adapter/out/db/client.js';
-import { migrateBillingSchema } from './adapter/out/db/migrations.js';
 import { seedProviderPrices } from './adapter/out/db/seed-prices.js';
 import { remainingForPlan } from './application/billing/billing-service.js';
 import { BILLING_PLANS } from './application/billing/plans.js';
@@ -11,7 +10,6 @@ const PLAN_IDS = Object.keys(BILLING_PLANS);
 
 function usage(): void {
   console.log(`Usage:
-  npm run billing -- migrate
   npm run billing -- seed-prices
   npm run billing -- reset --yes-drop-everything
   npm run billing -- summary
@@ -21,6 +19,10 @@ function usage(): void {
   npm run billing -- plan <guildId> <${PLAN_IDS.join('|')}>
   npm run billing -- suspend <guildId>
   npm run billing -- resume <guildId>
+
+Note: schema migrations moved to Flyway (see db/migrations/, run via "npm run migrate") —
+this CLI no longer has a "migrate" subcommand. "reset" only drops the schema now; run
+"npm run migrate" afterwards to rebuild it.
 
 Note: usage_events/billing_ledger tables were dropped on 2026-08-23 (per-call DB writes
 were too high-frequency, see CLAUDE.md; and this product isn't pay-as-you-go, so there's
@@ -48,33 +50,29 @@ async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
 
   switch (command) {
-    case 'migrate':
-      await migrateBillingSchema();
-      console.log('Billing schema migrated.');
-      break;
-
     case 'seed-prices': {
       const count = await seedProviderPrices();
       console.log(`Seeded ${count} provider price(s).`);
       break;
     }
 
-    // 全量重置：drop schema public cascade 把 BILLING_SCHEMA_SQL 建的所有表/索引/
-    // extension 一次性清空（不用一张张手写 drop table，也不会漏掉以后新加的表），
-    // 再 create schema public 建一个空的、当前连接用的角色自动是 owner，不需要额外
-    // grant。之后照常跑 migrate + seed-prices 重建。只在"没有真实用户数据、可以
-    // 全部丢弃"的场景用（比如当前还没上线），要求显式传 --yes-drop-everything，
-    // 打错命令不会误删。
+    // 全量重置：drop schema public cascade 把 db/migrations/ 建的所有表/索引/extension
+    // 一次性清空（不用一张张手写 drop table，也不会漏掉以后新加的表），再 create schema
+    // public 建一个空的、当前连接用的角色自动是 owner，不需要额外 grant。schema 重建
+    // 不在这里做——这个 CLI 不再拥有"建表"这个能力（那是 Flyway 的职责，见 db/migrations/
+    // 和 scripts/migrate-db.ts），drop 完之后需要的人自己跑 `npm run migrate` 重建，再
+    // 按需跑 `npm run billing -- seed-prices`。只在"没有真实用户数据、可以全部丢弃"的
+    // 场景用（比如当前还没上线），要求显式传 --yes-drop-everything，打错命令不会误删。
+    // 副作用：Flyway 自己的历史表 flyway_schema_history 也在 public schema 里，一起被
+    // 清空，所以之后 `npm run migrate` 会把 V1 当全新环境正常跑一遍（不需要、也不能再
+    // baseline）——这正是 reset 想要的效果，不是需要额外处理的边界情况。
     case 'reset': {
       if (!args.includes('--yes-drop-everything')) {
         throw new Error('This drops every billing table and all data. Re-run as: npm run billing -- reset --yes-drop-everything');
       }
       console.log('Dropping public schema (all tables, all data)...');
       await dbPool.query('drop schema public cascade; create schema public;');
-      await migrateBillingSchema();
-      console.log('Schema recreated.');
-      const count = await seedProviderPrices();
-      console.log(`Seeded ${count} provider price(s). Reset complete — all accounts/usage/session history is gone.`);
+      console.log('Schema dropped. Next: `npm run migrate` to rebuild it, then `npm run billing -- seed-prices` if you need provider prices back.');
       break;
     }
 

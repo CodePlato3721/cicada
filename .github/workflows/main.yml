@@ -18,6 +18,7 @@ jobs:
           git reset --hard origin/main
           npm ci
           npm run build
+          npm run migrate
           npm prune --omit=dev
           pm2 restart cicada
           pm2 save
