@@ -23,6 +23,15 @@ interface SlashCommandModule {
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 }
 
+// 首尾各 4 位，中间用省略号——只够肉眼核对"这是不是我刚改的那个 key"，不足以
+// 让日志泄露出去的人拼出完整 key。key 未设置/异常短（不像真实 key）时不硬凑首尾，
+// 直接说明原因，避免打印出误导性的半截内容。
+function maskApiKey(key: string | undefined): string {
+  if (!key) return '(not set)';
+  if (key.length <= 8) return '(set, but too short to preview safely)';
+  return `${key.slice(0, 4)}...${key.slice(-4)}`;
+}
+
 const commands = new Map<string, SlashCommandModule>([
   [join.data.name, join],
   [leave.data.name, leave],
@@ -43,6 +52,14 @@ const client = new Client({
 const logger = createLogger('index');
 
 logger.info(generateDependencyReport());
+
+// 排查过一次 STT 报错疑似 API key 问题——dotenv 只在进程启动这一刻读一次 .env
+// （见 config.ts 顶部的 import 'dotenv/config'），没有热重载，改完 .env 忘记
+// `pm2 restart` 的话运行中的进程还是拿着旧 key，光看 .env 文件内容看不出这个
+// 进程实际读到的是哪个。这里只打印首尾各 4 位，不是完整 key——日志会被 pm2/
+// 以后可能接的日志平台长期保存，不适合把完整密钥明文写进去，首尾 4 位够跟
+// .env 里的值肉眼核对是不是同一个了。
+logger.info({ deepgramApiKeyPreview: maskApiKey(config.deepgramApiKey) }, 'Deepgram API key loaded');
 
 await ensureRedisReady();
 logger.info('Redis connection ready');
