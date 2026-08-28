@@ -14,10 +14,16 @@
 
 create extension if not exists pgcrypto;
 
+-- plan_id 的合法取值和默认值跟 src/config/pricing-plans.json 手动保持一致（Flyway 迁移
+-- 文件是纯 SQL，跑的时候不会去读那份 JSON——这里的字面量是 pricing-plans.json 当前内容
+-- 的快照：四档 starter/pro/unlimited/beta，默认套餐是标了 isDefault: true 的 beta，见
+-- plans.ts 里 DEFAULT_PLAN_ID 的推导逻辑。以后 pricing-plans.json 增删套餐/换默认档，
+-- 这条 check 约束不会自动跟着变，需要新增一条 Vn__ 迁移手动改（跟 plans.ts/billing-cli.ts
+-- 那种"改一份 JSON 全自动同步"的动态派生不是一回事，SQL 层这道约束目前还没做到那个程度）。
 create table billing_accounts (
   id uuid primary key default gen_random_uuid(),
   guild_id text not null unique,
-  plan_id text not null default 'free' check (plan_id in ('free', 'server')),
+  plan_id text not null default 'beta' check (plan_id in ('starter', 'pro', 'unlimited', 'beta')),
   status text not null default 'active' check (status in ('active', 'suspended')),
   lifetime_cost_usd numeric(12, 6) not null default 0,
   created_at timestamptz not null default now(),

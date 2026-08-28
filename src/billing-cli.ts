@@ -2,6 +2,11 @@ import 'dotenv/config';
 import { dbPool, ensureDatabaseReady } from './adapter/out/db/client.js';
 import { seedProviderPrices } from './adapter/out/db/seed-prices.js';
 import { remainingForPlan } from './application/billing/billing-service.js';
+import { BILLING_PLANS } from './application/billing/plans.js';
+
+// 合法套餐 id 列表从 plans.ts（最终来源是 pricing-plans.json）读出来，不在这里手写——
+// 新增/下架套餐只改那一份 JSON，`plan` 命令的校验和下面的用法提示自动跟着变。
+const PLAN_IDS = Object.keys(BILLING_PLANS);
 
 function usage(): void {
   console.log(`Usage:
@@ -11,7 +16,7 @@ function usage(): void {
   npm run billing -- guild <guildId>
   npm run billing -- sessions <guildId> [limit]
   npm run billing -- credit <guildId> <amountUsd> [description]
-  npm run billing -- plan <guildId> <free|server>
+  npm run billing -- plan <guildId> <${PLAN_IDS.join('|')}>
   npm run billing -- suspend <guildId>
   npm run billing -- resume <guildId>
 
@@ -163,7 +168,7 @@ async function main(): Promise<void> {
 
     case 'plan': {
       const [guildId, planId] = args;
-      if (!guildId || !['free', 'server'].includes(planId)) throw new Error('usage: plan <guildId> <free|server>');
+      if (!guildId || !PLAN_IDS.includes(planId)) throw new Error(`usage: plan <guildId> <${PLAN_IDS.join('|')}>`);
       await ensureAccount(guildId);
       // 换套餐会改变上限，剩余额度物化列要跟着重算一次，不然要等下一次 60 秒定时同步
       // 才会追上——那期间 guild 命令会显示按旧套餐算出来的剩余量。用今天已用量（没有
