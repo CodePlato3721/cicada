@@ -91,7 +91,22 @@ function main(): void {
 
   execFileSync(
     flywayBin,
-    [`-url=${jdbcUrl}`, `-user=${user}`, `-password=${password}`, `-locations=filesystem:${MIGRATIONS_DIR}`, 'migrate'],
+    [
+      `-url=${jdbcUrl}`,
+      `-user=${user}`,
+      `-password=${password}`,
+      `-locations=filesystem:${MIGRATIONS_DIR}`,
+      // 生产库上 cicada 角色的 search_path 解析行为不正常——不带 schema 前缀的
+      // CREATE 语句（不管是 CREATE EXTENSION 还是普通 CREATE TABLE）统一报
+      // "no schema has been selected to create in"，唯独显式指定 schema 才成功
+      // （见 V1 迁移文件里 pgcrypto 那一行的注释）。本地 Docker 测试没复现，因为
+      // 本地 cicada 角色是超级用户，search_path 解析路径不一样。与其把 V1 里每一
+      // 条 create table/index 语句都手动加 public. 前缀，不如让 Flyway 直接把
+      // 这次连接的 schema 钉死在 public——Flyway 会在执行迁移前对连接设置
+      // search_path 为这里列出的 schema，绕开这个连接默认 search_path 本身的问题。
+      '-schemas=public',
+      'migrate',
+    ],
     { stdio: 'inherit' },
   );
 }
