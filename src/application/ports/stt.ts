@@ -90,37 +90,17 @@ export function openStream(options: TranscribeOptions = {}): SttStream {
 // 2026-08-26 再次扩展：不再是笼统的 ISO-639-1 基础码（'zh'/'en'/...），改成 Deepgram
 // nova-3 实际支持的具体 BCP-47 locale 码全集（如 'zh-TW'/'en-US'/'ar-EG'）。跟上一版
 // （zh/en/ko/ar/fr/ja/de/es/pt 九个基础码，跟 target 巧合对齐）不同——这次不再跟 target
-// 对齐，target（见 ports/tts.js 的 TTS_PROVIDER_BY_LANG）还是 9 个基础码不变，因为
-// TTS 播报不需要区分地区口音，但 STT 识别用具体地区 locale 能明显提升准确率（同一句英语，
-// 'en-US' 跟 'en-IN' 的识别模型不是同一套）。这份列表就是 Deepgram 官方支持的全部
-// STT locale，直接照抄，不是项目自己筛的子集——下游术语库/关键词检测按语言家族查表
-// （不区分地区），查表前用 domain/language.js 的 toBaseLang() 把这里的具体 locale
-// 还原成基础码，见 terminology.js/keyterms.js。
-export const SUPPORTED_SOURCE_LANGS = [
-  'af-ZA',
-  'ar-AE', 'ar-SA', 'ar-QA', 'ar-KW', 'ar-SY', 'ar-LB', 'ar-PS', 'ar-JO', 'ar-EG', 'ar-SD', 'ar-TD', 'ar-MA', 'ar-DZ', 'ar-TN', 'ar-IQ', 'ar-IR',
-  'hy', 'be', 'bn', 'bs', 'bg', 'ca',
-  'zh-HK', 'zh-CN', 'zh-TW',
-  'hr', 'cs',
-  'da-DK',
-  'nl',
-  'en-US', 'en-AU', 'en-GB', 'en-IN', 'en-NZ',
-  'et', 'fi',
-  'nl-BE',
-  'fr-CA',
-  'ka-GE',
-  'de', 'de-CH',
-  'el',
-  'gu-IN',
-  'he', 'hi', 'hu', 'id', 'it', 'ja', 'kn',
-  'ko-KR',
-  'lv', 'lt', 'mk', 'ms', 'mr', 'ne', 'no', 'fa', 'pl',
-  'pt-BR', 'pt-PT',
-  'pa-IN',
-  'ro', 'ru', 'sr', 'sk', 'sl',
-  'es-419',
-  'sv-SE',
-  'tl', 'ta', 'te',
-  'th-TH',
-  'tr', 'uk', 'ur', 'vi',
-];
+// 对齐，因为 TTS 播报不需要区分地区口音，但 STT 识别用具体地区 locale 能明显提升准确率
+// （同一句英语，'en-US' 跟 'en-IN' 的识别模型不是同一套）。这份列表就是 Deepgram 官方
+// 支持的全部 STT locale，直接照抄，不是项目自己筛的子集——下游术语库/关键词检测按
+// 语言家族查表（不区分地区），查表前用 domain/language.js 的 toBaseLang() 把这里的
+// 具体 locale 还原成基础码，见 terminology.js/keyterms.js。
+//
+// 2026-08-28：改成从 STT_PROVIDER_BY_LANG（上面那份从 stt-providers.json 读出来的路由表）
+// 派生，不再是这里手写的第二份 79 条硬编码数组。之前这两份列表内容碰巧一致，但没有任何
+// 机制保证它们一直一致——改 stt-providers.json 加/删一个 locale 时，很容易忘记这里还有
+// 一份要跟着改，届时 /config、/lang 的候选列表会悄悄跟实际路由表脱节（选项里能选但没有
+// 供应商处理，或者反过来）。跟 TTS 那边 SUPPORTED_TARGET_LANGS = Object.keys(TTS_PROVIDER_BY_LANG)
+// 用同一个模式：JSON 是唯一数据源，改配置文件自动带动候选列表和 execute() 里的服务端
+// 校验，不用记得改两个地方。
+export const SUPPORTED_SOURCE_LANGS = Object.keys(STT_PROVIDER_BY_LANG);
