@@ -108,48 +108,14 @@ const SOURCE_LANG_DISPLAY_NAMES: Record<string, string> = {
   vi: 'Vietnamese',
 };
 
-// 2026-08-28：本地测试反馈两个问题，一起在这里解决——
-// 1) 显示名太长："Chinese, Mandarin (Traditional) (zh-TW)" 这种全英文长名占满 Discord
-//    autocomplete 下拉框的宽度（移动端更明显），改成只显示 locale 码本身（"zh-TW"），
-//    用户认这个格式，一眼扫过去比一整行英文名好找。描述性英文名没有丢——挪进下面的
-//    searchText，用户依然能打 "chinese"/"english" 这类词搜到对应项（选项框描述文字
-//    "type to search, e.g. english" 承诺的还是这个行为），只是结果列表里不再显示它。
-// 2) 常用语言"加载不出来"：79 个 locale 里排在最前面的是 af-ZA 和 17 个阿拉伯语变体，
-//    英/中/日/韩这些最常用的语言在不打字的默认视图里完全看不到（Discord 一次最多回
-//    25 条，还没轮到就被截掉了），看起来像没加载出来。这里显式把项目实际主打的 9 种
-//    语言（跟 CLAUDE.md「供应商可切换」一节的 TTS 九语言、以及本文件里 zh 用繁体/ar
-//    用沙特/pt 用巴西口音的既定选型对齐）排到最前面，其余 locale 仍按原顺序跟在后面，
-//    不打字时至少这几个常用语言在首屏可见。
-const PRIORITY_LANG_CODES = ['zh-TW', 'en-US', 'ko-KR', 'ar-SA', 'fr-CA', 'ja', 'de', 'es-419', 'pt-BR'];
-
-interface LangChoice {
-  name: string;
-  value: string;
-  // 只用来匹配用户输入，不会出现在发给 Discord 的 respond() 里（见 filterChoices 最后
-  // 一步的 map，会把这个字段剥掉）。
-  searchText: string;
-}
-
 // 从 SUPPORTED_SOURCE_LANGS 生成——手动能选的语言范围就是项目实际准备好处理的源语言
-// 范围，两处引用同一个数组，不重复维护。按 PRIORITY_LANG_CODES 排到最前面、其余保持
-// 原有顺序跟在后面（sort 是 stable sort，"其余顺序不变"这个前提在 Node 里是有保证的）。
-function bySourceLangPriority(a: { value: string }, b: { value: string }): number {
-  const aIdx = PRIORITY_LANG_CODES.indexOf(a.value);
-  const bIdx = PRIORITY_LANG_CODES.indexOf(b.value);
-  if (aIdx === -1 && bIdx === -1) return 0;
-  if (aIdx === -1) return 1;
-  if (bIdx === -1) return -1;
-  return aIdx - bIdx;
-}
-
-export const SOURCE_LANG_CHOICES: LangChoice[] = SUPPORTED_SOURCE_LANGS.map((lang) => {
-  const displayName = SOURCE_LANG_DISPLAY_NAMES[lang] ?? fallbackDisplayName(lang);
-  return {
-    name: lang,
-    value: lang,
-    searchText: `${displayName} ${lang}`.toLowerCase(),
-  };
-}).sort(bySourceLangPriority);
+// 范围，两处引用同一个数组，不重复维护。name 里把 locale 码也带上（不只是语言名），
+// 因为 autocompleteLangOption 允许用户直接搜 locale 码（比如打 "en-in" 也要能搜到）、
+// 结果列表里也得让用户看清楚选的是哪个具体地区，不是只显示语言名混在一起分不清楚。
+export const SOURCE_LANG_CHOICES = SUPPORTED_SOURCE_LANGS.map((lang) => ({
+  name: `${SOURCE_LANG_DISPLAY_NAMES[lang] ?? fallbackDisplayName(lang)} (${lang})`,
+  value: lang,
+}));
 
 // --- target（TARGET_LANG_CHOICES）---
 // 2026-08-26 之前：target 选项直接就是 TTS_PROVIDER_BY_LANG 的 key，笼统的 ISO-639-1
@@ -182,11 +148,11 @@ export const SUPPORTED_TARGET_LOCALES = TARGET_LANG_CHOICES.map((choice) => choi
 // Discord autocomplete 单次响应硬上限：超过 25 条会被拒绝。
 const AUTOCOMPLETE_LIMIT = 25;
 
-function filterChoices(choices: LangChoice[], focused: string): { name: string; value: string }[] {
-  const matches = focused ? choices.filter((choice) => choice.searchText.includes(focused)) : choices;
-  // searchText 只是本地匹配用的，不发给 Discord——respond() 只接受 name/value，多余字段
-  // 不一定会被忽略，显式 map 掉更保险。
-  return matches.slice(0, AUTOCOMPLETE_LIMIT).map(({ name, value }) => ({ name, value }));
+function filterChoices(choices: { name: string; value: string }[], focused: string): { name: string; value: string }[] {
+  const matches = focused
+    ? choices.filter((choice) => choice.name.toLowerCase().includes(focused) || choice.value.toLowerCase().includes(focused))
+    : choices;
+  return matches.slice(0, AUTOCOMPLETE_LIMIT);
 }
 
 // /lang、/config 的 source 和 target 选项现在都用 autocomplete（source 79 个 locale、
