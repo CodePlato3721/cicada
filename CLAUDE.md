@@ -131,6 +131,30 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 
 ---
 
+## 数据库 schema 管理:Flyway(2026-08-27 接入)
+
+### 问题
+`billing_accounts`/`provider_prices`/`daily_guild_usage`/`billing_session_ledger` 这套 billing 相关的 Postgres schema,最初(`src/adapter/out/db/migrations.ts`)是一份手写的**累积幂等 SQL 脚本**——全篇靠 `create table if not exists`/`alter table if exists ... add column if not exists` 保证"每次部署无脑重跑全量脚本都安全",不需要额外的迁移历史追踪。这个方案在变更次数少的时候没问题,但有个内在代价:脚本只增不减、永远重放全部历史(哪怕某条语句早就是永久 no-op 了),想要"只跑上次到这次之间的增量、不重放已经生效的旧变更"做不到,只能靠 if-exists 语句自己在运行时判断"要不要跳过",没有版本历史这个概念。
+
+### 方案:Flyway(Community Edition,命令行工具,不用 Docker)
+换成版本化迁移——每次 schema 变更是 `db/migrations/` 下独立的一个文件(`V2__xxx.sql`、`V3__xxx.sql`……,不再需要 if-exists 保护,因为 Flyway 自己的历史表 `flyway_schema_history` 保证每个版本只执行一次),部署时只应用历史表里还没记录过的新文件。
+
+**接入时怎么处理"生产库已经有旧脚本建好的表"这个历史包袱**:`db/migrations/V1__baseline_billing_schema.sql` 是旧脚本最终状态的一份干净快照(去掉了针对老部署的 rename 兼容语句和已经执行过的 drop table,那些是"从旧版本迁移过来"的过渡步骤,不是目标 schema 本身)。生产库第一次接入时用 `flyway baseline -baselineVersion=1` 把 V1 标记成"已完成"而不真的重新执行一遍;全新环境(比如以后要拉一个 staging 库)没有这个历史包袱,`flyway migrate` 会让 V1 正常跑一遍从零建表。V1 的物理列顺序特意跟生产库实际顺序对齐(比如 `billing_accounts.stt_seconds_remaining`/`text_chars_remaining` 排在最后,因为生产库是后来 `alter table add column` 补上的),让"给已有库跑 baseline"和"给全新库跑 V1"两条路径产出完全一样的表结构——已经用本地 Docker Postgres 实际跑过这两条路径、`pg_dump --schema-only` diff 验证过一致。
+
+**不用 Docker 镜像跑 Flyway,改用官方命令行工具(自带 JRE)**:生产 droplet 只有 1GB 内存 + 2GB swap,已经有过一次真实 OOM 事故(见下面「部署环境与当前进度」一节)。Docker daemon 是常驻后台服务,装上之后不管用不用都会一直占内存,跟 cicada 主进程/Postgres/Redis 抢这本就紧张的 1GB,只为了偶尔跑一下迁移命令而常驻一个新服务划不来。Flyway 官方 command-line 发行版是自带 JRE 的纯静态文件,`scripts/migrate-db.ts`(`npm run migrate`)负责幂等下载安装(装过一次之后跳过,不会每次部署重新下载)、解析 `DATABASE_URL` 成 JDBC 连接参数(用 Node 内置 `URL` 类解析,不手写正则/shell 拼接处理密码里可能出现的特殊字符;调用 Flyway 二进制时用参数数组传给 `execFileSync`,不经过 shell,不存在转义/注入问题),再执行 `flyway migrate`。装好的 Flyway 本体常驻磁盘、不运行时零内存占用,只有部署那几秒真正执行迁移时才吃资源,跑完立刻释放——不是常驻服务。
+
+**部署流程**(`.github/workflows/main.yml`):`npm run build` 之后、`pm2 restart cicada` 之前插入 `npm run migrate`,保证新 schema 在新代码启动前就位,避免新代码启动瞬间读不到刚加的表/列。
+
+**`billing-cli.ts` 的变化**:`migrate` 子命令已删除(改用 `npm run migrate`);`reset`(全量清库,只在没有真实用户数据时用)现在只负责 `drop schema public cascade`,不再自己重建——重建交给 `npm run migrate`,drop 会连 `flyway_schema_history` 一起清空,所以 reset 之后再跑一次 migrate,V1 会被当全新环境正常执行一遍,不需要也不能再 baseline,这是 reset 想要的效果。`seed-prices` 命令不受影响,价格数据跟 schema 变更是两回事。
+
+### 选型过程:为什么不是 Prisma Migrate,不是纯手写累积脚本
+完整讨论过程见开发过程中的对话记录,简要结论:
+- **Prisma Migrate** 要用上就得接受 Prisma 那一整套 ORM(`schema.prisma` DSL + 生成的 `PrismaClient` + 影子数据库做 diff),项目现在是裸 `pg` 手写 SQL,不想为了一个迁移工具连带把查询层也换掉,性价比不高
+- **纯手写累积幂等脚本**(旧方案)本身不算错,是被认可的"声明式/收敛式" migration 模式,但会无限增长、有代价(见上面「问题」),规模变大后维护成本会持续上升
+- **Flyway** 是版本化迁移的老牌工具,SQL 文件就是普通 SQL、没有 DSL、没有代码生成,跟现有的手写 SQL 风格摩擦最小;顾虑过它是 Java 生态工具,但 command-line 发行版自带 JRE,不需要额外装 Java,而且确认了 Community Edition 完全免费、不需要 license key
+
+---
+
 ## VAD 切句注意事项
 
 - VAD 本身运算量极小(毫秒级,CPU 可跑),延迟主要来自"等待静音间隔"这个机制本身,不是算法慢

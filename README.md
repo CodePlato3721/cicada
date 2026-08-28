@@ -33,6 +33,37 @@ Discord 实时语音翻译 Bot。`/join` 后自动监听频道语音,本地 VAD 
 
 ---
 
+## 本地 Postgres(数据库,必需)
+
+Billing 相关数据(`billing_accounts`/`provider_prices`/`daily_guild_usage`/`billing_session_ledger`)存在 Postgres,`DATABASE_URL` 是必填项(`src/config.ts` 里没有它直接启动报错),bot 启动时也会先检查数据库连通(`ensureDatabaseReady`),连不上直接起不来——这个跟 Redis 不一样,不是可选依赖。
+
+**方式一:Docker(推荐)**
+```bash
+docker compose up -d postgres
+```
+用的是仓库根目录的 `docker-compose.yml`,起一个 `cicada-postgres` 容器,数据存在具名 volume 里,重启容器不丢数据。
+
+**方式二**:自己装本地 Postgres 17,建好库/用户,跟 `.env.example` 里 `DATABASE_URL` 默认值(`postgresql://cicada:cicada_dev_password@127.0.0.1:5432/cicada`)对应即可,或者改成你自己的连接串。
+
+起好之后,**第一次用/schema 有更新时都要跑一次迁移**(schema 用 Flyway 管理,版本化迁移文件在 `db/migrations/`,设计背景见 CLAUDE.md「数据库 schema 管理」一节):
+```bash
+npm run migrate
+```
+Windows 本机跑这个命令会报错提示改用 Docker——`npm run migrate` 背后调的是 Flyway 官方命令行工具,只自动装了 Linux/macOS 版本(生产 droplet 是 Linux),Windows 本地开发改用 Flyway 官方 Docker 镜像:
+```bash
+docker run --rm -v "$(pwd)/db/migrations:/flyway/sql" flyway/flyway `
+  -url=jdbc:postgresql://host.docker.internal:5432/cicada -user=cicada -password=cicada_dev_password `
+  -locations=filesystem:/flyway/sql migrate
+```
+
+想看当前有哪些表、要不要补价格数据,用 `billing-cli`(schema 建表不归它管了,只剩数据层面的操作):
+```bash
+npm run billing -- seed-prices   # 灌入 src/adapter/out/db/seed-prices.ts 里的供应商价格数据(幂等,重复跑不会出错)
+npm run billing -- summary       # 看有哪些 guild 账户
+```
+
+---
+
 ## 本地 Redis(翻译缓存,可选)
 
 给翻译环节加了一层 Redis 缓存,目前只覆盖中文源语言:同一句话(经过规范化)命中过缓存就直接返回译文,跳过 LLM 翻译调用。**这是可选依赖**:不装本地 Redis、`.env` 里不配 `REDIS_URL` 也完全不影响 bot 正常跑起来——启动时会打一行 `REDIS_URL not configured, translation cache layer disabled` 的警告日志,自动降级成"没有缓存"的行为,不会报错;Redis 连不上/超时同样只是记日志、跳过缓存,不会拖垮翻译流程。
@@ -93,6 +124,7 @@ cd /path/to/cicada
 git pull origin main
 npm install
 npm run build   # 项目是 TypeScript,pm2 托管的是 dist/ 下的编译产物,重启前必须先编译
+npm run migrate # 跑 Flyway 迁移(db/migrations/),必须在 pm2 restart 之前,见 CLAUDE.md「数据库 schema 管理」
 pm2 restart cicada   # 具体进程名/id 用 pm2 list 查
 pm2 logs cicada --lines 50   # 确认启动正常
 ```
