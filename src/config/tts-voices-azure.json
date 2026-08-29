@@ -90,26 +90,11 @@
   },
   "zh": {
     "male": [
-      "zh-CN-YunyangNeural",
-      "zh-CN-YunjianNeural",
-      "zh-CN-YunfengNeural",
-      "zh-CN-YunhaoNeural",
-      "zh-CN-YunjieNeural",
-      "zh-CN-YunxiaNeural",
-      "zh-CN-YunyeNeural",
-      "zh-CN-YunzeNeural"
+      "zh-TW-YunJheNeural"
     ],
     "female": [
-      "zh-CN-XiaoyiNeural",
-      "zh-CN-XiaohanNeural",
-      "zh-CN-XiaomengNeural",
-      "zh-CN-XiaomoNeural",
-      "zh-CN-XiaoqiuNeural",
-      "zh-CN-XiaorouNeural",
-      "zh-CN-XiaoruiNeural",
-      "zh-CN-XiaozhenNeural",
-      "zh-CN-XiaochenNeural",
-      "zh-CN-XiaoyouNeural"
+      "zh-TW-HsiaoChenNeural",
+      "zh-TW-HsiaoYuNeural"
     ]
   },
   "ko": {

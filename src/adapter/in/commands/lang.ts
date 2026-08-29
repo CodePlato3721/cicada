@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { getSession, setSourceLang, setTargetLang } from '../../../application/session.js';
 import { SUPPORTED_SOURCE_LANGS } from '../../../application/ports/stt.js';
-import { autocompleteLangOption, SUPPORTED_TARGET_LOCALES } from './language-choices.js';
+import { autocompleteLangOption, SUPPORTED_TARGET_VALUES } from './language-choices.js';
 
 export const data = new SlashCommandBuilder()
   .setName('lang')
@@ -39,7 +39,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
     return;
   }
-  if (target && !SUPPORTED_TARGET_LOCALES.includes(target)) {
+  if (target && !SUPPORTED_TARGET_VALUES.includes(target)) {
     await interaction.reply({
       content: `Unrecognized target language: "${target}". Pick one from the autocomplete suggestions while typing.`,
       ephemeral: true,

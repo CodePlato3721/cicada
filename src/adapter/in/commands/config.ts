@@ -2,7 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import { getSession, setSourceLang, setTargetLang, setGame } from '../../../application/session.js';
 import { GAMES } from '../../../domain/games.js';
 import { SUPPORTED_SOURCE_LANGS } from '../../../application/ports/stt.js';
-import { autocompleteLangOption, SUPPORTED_TARGET_LOCALES } from './language-choices.js';
+import { autocompleteLangOption, SUPPORTED_TARGET_VALUES } from './language-choices.js';
 
 // /join 之后必须调用的那一步——source/target 语言 + game 一次性设完，取代原来
 // "必须先 /lang target:<language>" 那条路径。source 和 target 这里都是必填：
@@ -60,7 +60,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
     return;
   }
-  if (!SUPPORTED_TARGET_LOCALES.includes(target)) {
+  if (!SUPPORTED_TARGET_VALUES.includes(target)) {
     await interaction.reply({
       content: `Unrecognized target language: "${target}". Pick one from the autocomplete suggestions while typing.`,
       ephemeral: true,
