@@ -119,7 +119,7 @@ export async function handleSegment(
     const baseTargetLang = targetLang;
 
     const result = transcribeResult;
-    logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] using streamed STT result`);
+    logger.debug({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] using streamed STT result`);
     const sttUsageLog = {
         event: 'external_api_usage',
         stage: 'stt',
@@ -135,12 +135,12 @@ export async function handleSegment(
         chunkCount: result.usage?.chunkCount,
         keytermCount: result.usage?.keytermCount,
       } as const;
-    logger.info(sttUsageLog, 'External API usage: STT transcription');
+    logger.debug(sttUsageLog, 'External API usage: STT transcription');
     await recordExternalApiUsage(sttUsageLog);
 
     const transcriptText = result.text?.trim();
     if (!transcriptText) {
-      logger.info({ ...ctx, who }, `${who} no text recognized from this segment, skipping`);
+      logger.debug({ ...ctx, who }, `${who} no text recognized from this segment, skipping`);
       return;
     }
 
@@ -159,7 +159,7 @@ export async function handleSegment(
       await sendBillingWarningReminder(voiceChannel, billingDecision.warningMessage);
     }
 
-    logger.info({ ...ctx, who, transcript: transcriptText }, `${who} transcript: "${transcriptText}"`);
+    logger.info({ event: 'translation_cache_candidate', ...ctx, who, transcript: transcriptText }, `${who} transcript: "${transcriptText}"`);
     speakerState.lastTranscript = transcriptText;
     await saveSpeaker(guildId, userId, speakerState);
 
@@ -169,7 +169,7 @@ export async function handleSegment(
       gameId: session.game,
       transcriptText,
     });
-    logger.info(
+    logger.debug(
       {
         event: 'translation_cache_lookup',
         ...ctx,
@@ -198,7 +198,14 @@ export async function handleSegment(
     if (cacheLookup.kind === 'hit') {
       cacheKey = cacheLookup.cacheKey;
       translatedText = cacheLookup.translatedText;
-      logger.info({ ...ctx, who, cacheKey }, `${who} translation cache hit, skipping LLM translation: "${translatedText}"`);
+      logger.info(
+        {
+          event: 'translation_cache_hit',
+          guildId,
+          sequence,
+        },
+        'Translation cache hit',
+      );
     } else if (cacheLookup.kind === 'miss') {
       textForTranslation = cacheLookup.textForTranslation;
       cacheKey = cacheLookup.cacheKey;
@@ -218,7 +225,7 @@ export async function handleSegment(
       const rawTranslatedText = await translate(preparedText, targetLang, {
         logContext: { ...ctx, who, sourceLang: session.sourceLang, targetLang },
       });
-      logger.info({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] translation returned`);
+      logger.debug({ ...ctx, who, elapsedMs: Date.now() - t0 }, `${who} [${elapsed()}] translation returned`);
       if (hitCount > 0) {
         logger.info({ ...ctx, who, rawTranslatedText }, `${who} raw translation output (for verification, includes <keep> tags): "${rawTranslatedText}"`);
       }
@@ -249,7 +256,7 @@ export async function handleSegment(
       provider,
       logContext: { ...ctx, who, sourceLang: session.sourceLang, targetLang },
     });
-    logger.info(
+    logger.debug(
       { ...ctx, who, elapsedMs: Date.now() - t0, provider, voice },
       `${who} [${elapsed()}] TTS returned (provider: ${provider}, voice: ${voice}), entering playback queue`,
     );

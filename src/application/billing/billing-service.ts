@@ -274,7 +274,7 @@ export async function finalizeSessionLedger(guildId: string): Promise<void> {
       [account.id, totalCostUsd],
     );
     await client.query('commit');
-    logger.info(
+    logger.debug(
       { guildId, durationSeconds, totalCostUsd },
       `guild ${guildId} session ledger recorded: ${durationSeconds.toFixed(0)}s connected, $${totalCostUsd} estimated cost`,
     );

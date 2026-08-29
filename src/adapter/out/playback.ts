@@ -22,21 +22,13 @@ export function playPcmInChannel(connection: VoiceConnection, pcmBuffer: Buffer)
       reject(err);
     };
 
-    const startedAt = Date.now();
     player.on(AudioPlayerStatus.Idle, onIdle);
     player.on('error', onError);
-    player.on('stateChange', (oldState, newState) => {
-      logger.info(
-        { from: oldState.status, to: newState.status, elapsedMs: Date.now() - startedAt },
-        `Playback state: ${oldState.status} -> ${newState.status} (elapsed ${Date.now() - startedAt}ms)`,
-      );
-    });
 
     const subscription = connection.subscribe(player);
-    logger.info(
-      { subscribed: Boolean(subscription) },
-      `connection.subscribe result: ${subscription ? 'success' : 'failed (returned undefined)'}`,
-    );
+    if (!subscription) {
+      logger.warn({ subscribed: false }, 'connection.subscribe failed');
+    }
 
     player.play(resource);
   });

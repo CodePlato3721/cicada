@@ -49,7 +49,7 @@ export async function synthesize(text: string, { voice, logContext }: Synthesize
     elapsedMs: Date.now() - startedAt,
     logContext,
   });
-  logger.info(usageLog, 'External API usage: TTS synthesis');
+  logger.debug(usageLog, 'External API usage: TTS synthesis');
   await recordExternalApiUsage(usageLog);
   return audio;
 }

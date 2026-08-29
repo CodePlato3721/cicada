@@ -38,10 +38,6 @@ function findItem(state: QueueState, sequence: number): QueueItem | undefined {
 export function markMaking(guildId: string, connection: VoiceConnection, sequence: number): void {
   const state = getOrCreateQueueState(guildId, connection);
   state.items.push({ sequence, status: 'making' });
-  logger.info(
-    { guildId, sequence, pendingSequences: state.items.map((item) => `${item.sequence}:${item.status}`) },
-    'Playback sequence marked as making',
-  );
 }
 
 export function checkBacklogWarning(guildId: string): boolean {
@@ -66,10 +62,6 @@ export function enqueuePlayback(guildId: string, connection: VoiceConnection, pc
     logger.warn({ guildId, sequence }, 'enqueuePlayback called without a prior markMaking placeholder, inserting directly');
     state.items.push({ sequence, status: 'ready', pcm: pcmBuffer });
   }
-  logger.info(
-    { guildId, sequence, pendingSequences: state.items.map((i) => `${i.sequence}:${i.status}`) },
-    'Playback queued',
-  );
   drain(guildId);
 }
 
@@ -82,10 +74,6 @@ export function skipPlaybackSequence(guildId: string, connection: VoiceConnectio
     logger.warn({ guildId, sequence }, 'skipPlaybackSequence called without a prior markMaking placeholder, inserting directly');
     state.items.push({ sequence, status: 'skip' });
   }
-  logger.info(
-    { guildId, sequence, pendingSequences: state.items.map((i) => `${i.sequence}:${i.status}`) },
-    'Playback sequence skipped',
-  );
   drain(guildId);
 }
 
@@ -105,7 +93,7 @@ async function drain(guildId: string): Promise<void> {
     }
   }
   if (state.items.length > 0) {
-    logger.info(
+    logger.debug(
       { guildId, pendingSequences: state.items.map((i) => `${i.sequence}:${i.status}`) },
       'Playback queue waiting for earlier sequence',
     );

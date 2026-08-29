@@ -115,15 +115,10 @@ export async function startListening(connection: VoiceConnection, voiceChannel: 
   guildVoiceRuntimes.set(guildId, { connection, voiceChannel, speakers: new Map() });
 
   const onSpeakingStart = (userId: string) => {
-    logger.info({ userId }, `${userId} Discord detected speaking started`);
     const key = speakerRuntimeKey(guildId, userId);
     const hasRuntime = hasSpeakerVoiceRuntime(guildId, userId);
     const isStarting = startingSpeakerPipelines.has(key);
     if (hasRuntime || isStarting) {
-      logger.info(
-        { event: 'speaker_pipeline_reused', guildId, userId, hasRuntime, isStarting },
-        `${userId} speaker pipeline already active or starting`,
-      );
       return;
     }
     startingSpeakerPipelines.add(key);
@@ -209,7 +204,7 @@ async function createSpeakerPipeline(
     };
     await addSpeaker(guildId, userId, speakerState);
   } else {
-    logger.info(
+    logger.debug(
       { event: 'speaker_state_reused', guildId, userId, who: speakerState.label ?? null },
       `${userId} reusing speaker state: ${speakerState.label ?? '(unlabeled)'}`,
     );
@@ -241,7 +236,7 @@ async function createSpeakerPipeline(
     const windowMs = Date.now() - audioWindowStartAt;
     const rms =
       audioWindowStats.sampleCount > 0 ? Math.sqrt(audioWindowStats.sumSquares / audioWindowStats.sampleCount) : 0;
-    logger.info(
+    logger.debug(
       {
         event: 'speaker_audio_diagnostics',
         guildId,
@@ -290,9 +285,6 @@ async function createSpeakerPipeline(
   };
 
   const handleDetectedSegment = (segment: Float32Array, sequence: number, transcribeResult: TranscribeResult | null) => {
-    const durationSec = (segment.length / 16000).toFixed(2);
-    logger.info({ userId, durationSec }, `${userId} VAD determined the sentence ended, audio duration ${durationSec}s`);
-
     saveInputRecording(userId, Date.now(), segment, 16000).catch((err) => {
       logger.error({ err, userId }, `Failed to save backup input recording for ${userId}`);
     });
@@ -314,7 +306,6 @@ async function createSpeakerPipeline(
           const sttDecision = sessionForStt ? checkSttAllowed(sessionForStt) : undefined;
           const segments = await vad.feed(job.data, {
             onSpeechStart: () => {
-              logger.info({ userId }, `${userId} VAD confirmed this is speech, starting to count a sentence`);
               if (!sttStream) {
                 if (sttDecision && !sttDecision.allowed) {
                   logger.info(
@@ -327,19 +318,6 @@ async function createSpeakerPipeline(
                   return;
                 }
                 const keyterms = getKeyterms(sessionForStt?.game, sessionForStt?.sourceLang);
-                logger.info(
-                  {
-                    event: 'stt_stream_opening',
-                    guildId,
-                    userId,
-                    who: speakerState.label ?? null,
-                    sourceLang: sessionForStt?.sourceLang ?? null,
-                    gameId: sessionForStt?.game ?? null,
-                    keytermCount: keyterms.length,
-                    hasLastTranscript: Boolean(speakerState.lastTranscript),
-                  },
-                  `${userId} opening STT stream for ${speakerState.label ?? 'unknown speaker'}`,
-                );
                 sttStream = openStream({
                   language: sessionForStt?.sourceLang,
                   prompt: speakerState.lastTranscript,
@@ -362,7 +340,6 @@ async function createSpeakerPipeline(
         } else if (job.type === 'forceEnd') {
           const segment = vad.forceEnd();
           if (segment) {
-            logger.info({ userId }, `${userId} audio stream paused, force-ending this sentence`);
             const sequence = await nextPlaybackSequence(guildId);
             const transcribeResult = await closeSttStream();
             if (sequence === null) {
@@ -372,7 +349,7 @@ async function createSpeakerPipeline(
               handleDetectedSegment(segment, sequence, transcribeResult);
             }
           } else if (sttStream) {
-            logger.info(
+            logger.debug(
               {
                 event: 'speaker_force_end_without_vad_segment',
                 guildId,
@@ -386,7 +363,7 @@ async function createSpeakerPipeline(
             );
             await closeSttStream();
           } else {
-            logger.info(
+            logger.debug(
               {
                 event: 'speaker_force_end_without_vad_segment',
                 guildId,

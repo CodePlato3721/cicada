@@ -32,7 +32,7 @@ export async function translate(text: string, targetLang: string, options: Trans
       totalTokens: completion.usage?.total_tokens,
       usage: completion.usage,
     } as const;
-  logger.info(usageLog, 'External API usage: LLM translation');
+  logger.debug(usageLog, 'External API usage: LLM translation');
   await recordExternalApiUsage(usageLog);
 
   return translatedText;

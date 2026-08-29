@@ -47,7 +47,7 @@ export async function synthesize(
     elapsedMs: Date.now() - startedAt,
     logContext,
   });
-  logger.info(usageLog, 'External API usage: TTS synthesis');
+  logger.debug(usageLog, 'External API usage: TTS synthesis');
   await recordExternalApiUsage(usageLog);
   return audio;
 }
