@@ -4,7 +4,6 @@ import { createLogger } from './logger.js';
 
 const logger = createLogger('playback');
 
-// pcmBuffer：48kHz 立体声 16-bit PCM。播完（或出错）才 resolve，方便多段依次播放不重叠。
 export function playPcmInChannel(connection: VoiceConnection, pcmBuffer: Buffer): Promise<void> {
   return new Promise((resolve, reject) => {
     const player = createAudioPlayer();

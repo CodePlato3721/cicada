@@ -7,8 +7,6 @@ export const data = new SlashCommandBuilder()
   .setDescription('Stop listening and leave the current voice channel');
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  // guildId 必然存在——这个命令只在已经 /join 过的服务器语音频道场景下被调用，
-  // 见 game.js 同样的 ! 断言惯例。
   const connection = getVoiceConnection(interaction.guildId!);
 
   if (!connection) {

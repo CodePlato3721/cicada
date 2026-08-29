@@ -11,7 +11,6 @@ export const data = new SlashCommandBuilder()
   .setDescription('Play a test sound to verify the "play PCM to voice channel" step works on its own');
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  // guildId 必然存在，见 game.js 同样的 ! 断言惯例。
   const connection = getVoiceConnection(interaction.guildId!);
 
   if (!connection) {

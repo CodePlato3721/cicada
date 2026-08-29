@@ -5,9 +5,6 @@ import { createLogger } from '../../adapter/out/logger.js';
 
 const logger = createLogger('ports/translate');
 
-// 翻译端口：application 层只认这个文件，不直接 import 任何具体供应商的 adapter。
-// 契约：translate(text: string, targetLang: string) => Promise<string>，
-// 两个 provider 都要满足这个签名——新增供应商时在这里注册一行就行，不用碰 pipeline.js。
 export interface UsageLogContext {
   guildId?: string;
   userId?: string;
