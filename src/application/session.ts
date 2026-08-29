@@ -2,7 +2,6 @@ import type { Gender } from '../domain/pitch.js';
 import { redisClient } from '../adapter/out/redis/client.js';
 import { createLogger } from '../adapter/out/logger.js';
 import { todayUtc } from '../domain/date.js';
-import { toBaseLang } from '../domain/language.js';
 import { resolveTtsProvider } from './ports/tts.js';
 import { DEFAULT_PLAN_ID } from './billing/plans.js';
 
@@ -174,13 +173,9 @@ export async function setTargetLang(guildId: string, lang: string): Promise<bool
   const data = await redisClient.hgetall(key);
   if (Object.keys(data).length === 0) return false;
 
-  // 2026-08-26：target 也从笼统基础码扩成具体 locale（如 'en-IN'/'pt-BR'，见
-  // commands/language-choices.js），跟 sourceLang 那次扩展是同一个理由（供应商按地区
-  // 细分，翻译 prompt 直接吃 locale 能拿到更准的地区措辞，比如 en-US 的 "color" vs
-  // en-GB 的 "colour"，见 translation-prompt.js）。但 TTS_PROVIDER_BY_LANG 这张表
-  // 只按基础语言码分供应商（不区分地区——没有哪个供应商是"只覆盖 en-IN 不覆盖 en-US"
-  // 这种颗粒度），查表前必须先还原成基础码，不能直接拿 locale 去查会全部查不到。
-  const ttsProvider = resolveTtsProvider(toBaseLang(lang)!);
+  // target 保存基础语言码（如 'en'/'zh'），跟 TTS_PROVIDER_BY_LANG 的 key 保持一致。
+  // TTS 不需要地区颗粒度；翻译 prompt 里只有 zh 会单独按 zh-TW 处理。
+  const ttsProvider = resolveTtsProvider(lang);
   await redisClient.hset(key, 'targetLang', lang);
   if (ttsProvider) {
     await redisClient.hset(key, 'ttsProvider', ttsProvider);

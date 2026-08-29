@@ -13,9 +13,9 @@ test('buildTranslationMessages：返回 system + user 两条消息，user 内容
   assert.equal(messages[1].content, '<source>\nHello world\n</source>');
 });
 
-test('buildTranslationMessages：system prompt 直接使用 target 配置值', () => {
+test('buildTranslationMessages：zh target 在 prompt 中 hardcode 成 zh-TW', () => {
   const messages = buildTranslationMessages('Hello', 'zh');
-  assert.ok(messages[0].content.includes('to zh'));
+  assert.ok(messages[0].content.includes('to zh-TW'));
   assert.ok(!messages[0].content.includes('Chinese'));
 });
 

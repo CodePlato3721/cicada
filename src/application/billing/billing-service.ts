@@ -190,11 +190,9 @@ export async function checkTranslateAllowed(guildId: string, session: Session, t
   }
 
   const plan = planFor(session);
-  // session.sourceLang/targetLang 现在都是具体 locale（如 'zh-TW'/'en-US'，见
-  // commands/language-choices.js），但 allowedLanguageCodes 这张白名单是按基础语言码
-  // 维护的（'zh'/'en'/'es'/'ja'/'ko'，见 plans.ts）——直接拿 locale 去查会全部落空
-  // （'zh-TW' 不在只含 'zh' 的 Set 里），导致 Free plan 的语言白名单形同虚设，查之前
-  // 必须先 toBaseLang() 还原。
+  // sourceLang 是具体 locale（如 'zh-TW'/'en-US'），targetLang 是基础语言码（如 'zh'/'en'）。
+  // allowedLanguageCodes 这张白名单按基础语言码维护（见 plans.ts），所以统一过一遍
+  // toBaseLang()；对已经是基础码的 targetLang 来说这是无害的恒等处理。
   const languages = [toBaseLang(session.sourceLang), toBaseLang(session.targetLang)].filter((lang): lang is string =>
     Boolean(lang),
   );

@@ -14,7 +14,6 @@ import { getSession, listSpeakerEntries, saveSpeaker, type SpeakerState } from '
 import { assignVoice } from './voice-assignment.js';
 import { checkTranslateAllowed, recordExternalApiUsage } from './billing/billing-service.js';
 import { createLogger } from '../adapter/out/logger.js';
-import { toBaseLang } from '../domain/language.js';
 
 const logger = createLogger('pipeline');
 
@@ -186,11 +185,9 @@ export async function handleSegment(
 
     const targetLang = session.targetLang;
     const provider = session.ttsProvider; // 跟 targetLang 一起在 setTargetLang 里联动设置，见 session.js
-    // 2026-08-26：targetLang 现在是具体 locale（如 'en-IN'，见 commands/language-choices.js），
-    // 保留全量精度直接喂给翻译 prompt（换取更准的地区措辞，见 translation-prompt.js）；
-    // 但术语库译词表、音色池都是按基础语言码维护的（不区分地区），下面用到这两处的地方
-    // 都要显式 toBaseLang() 还原，不能直接拿 locale 去查。
-    const baseTargetLang = toBaseLang(targetLang);
+    // targetLang 是基础语言码，正好匹配术语库译词表、音色池和 TTS provider 路由。
+    // 翻译 prompt 对 zh 的繁中偏好在 translation-prompt.js 内部处理，不影响这里的查表。
+    const baseTargetLang = targetLang;
 
     // STT 这一步已经在 voice-listener.js 里跟音频流并行做完了：VAD 判定这句话开始的
     // 同时开一路流式 STT 连接，说话过程中 PCM 边到边推过去，判定说完时关流拿最终结果——
@@ -345,7 +342,7 @@ export async function handleSegment(
       return;
     }
 
-    const voice = TTS_VOICE_OVERRIDE ?? (await resolveSpeakerVoice(guildId, userId, speakerState, provider, baseTargetLang!));
+    const voice = TTS_VOICE_OVERRIDE ?? (await resolveSpeakerVoice(guildId, userId, speakerState, provider, baseTargetLang));
     const ttsWav = await synthesize(translatedText, {
       voice,
       targetLang,
