@@ -7,9 +7,6 @@ import { recordExternalApiUsage } from '../../../application/billing/billing-ser
 const logger = createLogger('groq/translate');
 const MODEL = 'llama-3.1-8b-instant';
 
-// text: 待翻译原文。targetLang: ISO-639-1 代码（如 'en'）。
-// 这个函数满足 application/ports/translate.js 定义的翻译端口签名——
-// 换供应商时（见 adapter/out/deepseek/translate.js）要保持同样的签名和返回形状。
 export async function translate(text: string, targetLang: string, options: TranslateOptions = {}): Promise<string> {
   const startedAt = Date.now();
   const groq = getGroqClient();

@@ -1,4 +1,3 @@
-// 极简 WAV 解析：够用即可，只处理标准 PCM 格式（fmt / data 两个 chunk）。
 export interface ParsedWav {
   channels: number;
   sampleRate: number;
@@ -30,7 +29,6 @@ export function parseWav(buffer: Buffer): ParsedWav {
       data = buffer.subarray(chunkStart, chunkStart + chunkSize);
     }
 
-    // chunk 按偶数字节对齐
     offset = chunkStart + chunkSize + (chunkSize % 2);
   }
 
@@ -41,12 +39,10 @@ export function parseWav(buffer: Buffer): ParsedWav {
   return { ...fmt, data };
 }
 
-// 把 16-bit 单声道 PCM 用线性插值升采样 2 倍，并复制成双声道。
-// Groq TTS(Orpheus)固定输出 24kHz 单声道，Discord 播放要求 48kHz 立体声，正好差 2 倍。
 export function upsampleMono24kToStereo48k(monoBuffer: Buffer): Buffer {
   const inSamples = monoBuffer.length / 2;
   const outSamples = inSamples * 2;
-  const out = Buffer.alloc(outSamples * 4); // 2 bytes/sample * 2 声道
+  const out = Buffer.alloc(outSamples * 4);
 
   for (let i = 0; i < inSamples; i++) {
     const s0 = monoBuffer.readInt16LE(i * 2);
@@ -65,8 +61,6 @@ export function upsampleMono24kToStereo48k(monoBuffer: Buffer): Buffer {
   return out;
 }
 
-// 按比例压缩时间轴（线性插值），等效于放快播放——Groq 的 speed 参数实测对 Orpheus 不生效，
-// 只能自己在本地处理。副作用：倍率越大，音调会跟着变高（跟磁带加速播放一个道理）。
 function speedUpMonoInt16(buffer: Buffer, speed: number): Buffer {
   if (speed === 1) return buffer;
 
@@ -91,7 +85,6 @@ export interface TtsWavToDiscordPcmOptions {
   speed?: number;
 }
 
-// Groq TTS 返回的 wav Buffer → Discord 播放要求的 48kHz 立体声 16-bit PCM Buffer
 export function ttsWavToDiscordPcm(
   wavBuffer: Buffer,
   { speed = Number(process.env.TTS_SPEED ?? 1) }: TtsWavToDiscordPcmOptions = {},

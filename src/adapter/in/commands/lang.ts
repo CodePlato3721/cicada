@@ -21,17 +21,12 @@ export const data = new SlashCommandBuilder()
       .setAutocomplete(true),
   );
 
-// source 和 target 都改成 autocomplete 之后（见 language-choices.js 顶部注释——source
-// 79 个 locale、target 54 个语言，都超过 Discord addChoices 25 个上限），/lang 和
-// /config 共用同一个过滤逻辑。
 export const autocomplete = autocompleteLangOption;
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const source = interaction.options.getString('source');
   const target = interaction.options.getString('target');
 
-  // autocomplete 不像 addChoices，Discord 不会在服务端强制最终提交值必须来自候选列表
-  // （见 language-choices.js 的 autocompleteLangOption 注释）——这里必须手动校验一遍。
   if (source && !SUPPORTED_SOURCE_LANGS.includes(source)) {
     await interaction.reply({
       content: `Unrecognized source language: "${source}". Pick one from the autocomplete suggestions while typing.`,

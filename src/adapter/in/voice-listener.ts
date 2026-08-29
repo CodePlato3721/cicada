@@ -54,9 +54,6 @@ interface SpeakerVoiceRuntime {
   vad: StreamingVad;
   opusStream: AudioReceiveStream;
   decoder: opus.Decoder;
-  // 占位后立即被 createSpeakerPipeline 里的真实实现覆盖（见下方），字段本身必须在
-  // 对象字面量构造时就存在，不能是可选——forceEndSpeech() 会被 onSpeakingEnd 直接调用，
-  // 不想每次调用都做一次"存在与否"的可选链判断。
   forceEndSpeech: () => void;
 }
 
@@ -66,8 +63,6 @@ interface GuildVoiceRuntime {
   speakers: Map<string, SpeakerVoiceRuntime>;
 }
 
-// guildId -> { onSpeakingStart, onSpeakingEnd }：Discord 事件监听器的引用，只用于
-// /leave 时能对称地 off() 掉。这是纯 adapter 细节，不属于业务状态，不放进 application/session.js。
 interface GuildListeners {
   onSpeakingStart: (userId: string) => void;
   onSpeakingEnd: (userId: string) => void;
@@ -77,12 +72,6 @@ const guildListeners = new Map<string, GuildListeners>();
 const guildVoiceRuntimes = new Map<string, GuildVoiceRuntime>();
 const startingSpeakerPipelines = new Set<string>();
 
-// connection-usage-tracker.ts 曾经的 5 分钟定时器角色现在换成这个：不再是"按固定间隔
-// 累加连接时长写 Postgres"，只是单纯"把 Redis 里已经原子累加好的用量快照同步进
-// daily_guild_usage"（billing-service.js 的 syncBillingStateToDb），billing 状态本身
-// 全靠 recordExternalApiUsage 实时维护，这个定时器只负责让 DB 别跟 Redis 差太远，
-// 60 秒一次的粒度足够（真正跨限额线的那一刻已经有单独的立即同步，见
-// recordExternalApiUsage 底部）。
 const BILLING_SYNC_INTERVAL_MS = 60 * 1000;
 const billingSyncTimers = new Map<string, NodeJS.Timeout>();
 
@@ -118,20 +107,14 @@ function hasSpeakerVoiceRuntime(guildId: string, userId: string): boolean {
 export async function startListening(connection: VoiceConnection, voiceChannel: VoiceBasedChannel): Promise<void> {
   const guildId = connection.joinConfig.guildId;
 
-  // 如果之前有残留状态（比如重复 /join），先清掉再重新开始。
   await stopListening(guildId);
 
   await createSession(guildId);
-  // 这场会话唯一一次为了账单目的读 Postgres——把账号状态/套餐/今天已用量缓存进 Redis
-  // session hash，后面每句话的账单判断都只读这份缓存（见 billing-service.js）。
   await hydrateSessionBillingState(guildId);
   startBillingSync(guildId);
   guildVoiceRuntimes.set(guildId, { connection, voiceChannel, speakers: new Map() });
 
   const onSpeakingStart = (userId: string) => {
-    // 诊断用：Discord 检测到这个人开始说话的时刻，跟 VAD 确认"这是人声"的时刻对比，
-    // 能看出是不是网络/@discordjs-voice 这一层就已经有延迟——两条日志各自的 time 字段
-    // 就是时间点，不用再在消息文本里手动拼一遍时间。
     logger.info({ userId }, `${userId} Discord detected speaking started`);
     const key = speakerRuntimeKey(guildId, userId);
     const hasRuntime = hasSpeakerVoiceRuntime(guildId, userId);
@@ -141,7 +124,7 @@ export async function startListening(connection: VoiceConnection, voiceChannel: 
         { event: 'speaker_pipeline_reused', guildId, userId, hasRuntime, isStarting },
         `${userId} speaker pipeline already active or starting`,
       );
-      return; // 已经在监听或正在初始化这个人了
+      return;
     }
     startingSpeakerPipelines.add(key);
     createSpeakerPipeline(guildId, connection, voiceChannel, userId)
@@ -153,8 +136,6 @@ export async function startListening(connection: VoiceConnection, voiceChannel: 
       });
   };
 
-  // Discord 客户端真正沉默时根本不发音频包，我们自己"数安静帧"的判断永远等不到帧，
-  // 只能靠这个连接层面的信号强制收尾，不然一句话会跟很久之后的下一句无限粘在一起。
   const onSpeakingEnd = (userId: string) => {
     getSpeakerVoiceRuntime(guildId, userId)?.forceEndSpeech();
   };
@@ -191,16 +172,12 @@ export async function stopListening(guildId: string): Promise<void> {
 
   guildVoiceRuntimes.delete(guildId);
   stopBillingSync(guildId);
-  // 必须在 deleteSession 清空 Redis 之前调用——这是唯一一个真正拿得到"这场会话完整
-  // 用量"的时刻，算出这场会话的 estimated_cost_usd 写进 billing_session_ledger（见
-  // billing-service.js）。失败了只记日志，不能因为账单收尾失败就卡住 /leave 本身。
   await finalizeSessionLedger(guildId).catch((err) => logger.error({ err, guildId }, `Failed to finalize session ledger for guild ${guildId}`));
   await deleteSession(guildId);
   clearPlaybackQueue(guildId);
   logger.info({ guildId }, `Stopped listening to guild ${guildId}`);
 }
 
-// jobQueue 里排队的两种任务：一块新到的音频（chunk）或者"强制结束这句话"（forceEnd）。
 type SpeakerJob = { type: 'chunk'; data: Buffer } | { type: 'forceEnd' };
 
 async function createSpeakerPipeline(
@@ -217,8 +194,6 @@ async function createSpeakerPipeline(
     return;
   }
 
-  // Manual：不自动结束订阅，我们自己控制生命周期（/leave 时统一清理）。
-  // "一句话说完没"完全交给上面的 VAD 实时判断，不再依赖 Discord 自带的静音计时。
   const opusStream = connection.receiver.subscribe(userId, {
     end: { behavior: EndBehaviorType.Manual },
   });
@@ -247,9 +222,6 @@ async function createSpeakerPipeline(
     forceEndSpeech: () => {},
   };
 
-  // 这句话对应的流式 STT 连接——VAD 通过 onSpeechStart 判定"这句话开始了"时 open，
-  // 判定"这句话结束了"（SpeechEnd/forceEnd）时 close 拿最终转写结果。null 代表当前
-  // 没有正在进行中的句子（还没开口，或者上一句已经收尾）。
   let sttStream: SttStream | null = null;
   const jobQueue: SpeakerJob[] = [];
   let draining = false;
@@ -305,13 +277,6 @@ async function createSpeakerPipeline(
     logAudioDiagnostics('interval');
   };
 
-  // 关掉当前这路 STT 流（如果有）并拿到最终结果；没有正在进行的流就直接给个空结果，
-  // 调用方（下面 handleDetectedSegment）后续会按"这段话没识别出文字"处理，不额外分支。
-  // 流式连接在拿到最终结果之前中途失败（网络中断、供应商报错）时 stream.close() 的
-  // promise 会 reject——这里捕获、记日志、返回 null，不做任何"退回旧的 pre-recorded
-  // 方式重试"的兜底（见 DESIGN.md）。调用方把 null 原样传给 handleSegment，让
-  // pipeline.js 已有的 try/finally + skipPlaybackSequence 分支去处理"这句话没有转写
-  // 结果、直接跳过"这个情况，不在这里另写一套。
   const closeSttStream = async (): Promise<TranscribeResult | null> => {
     const stream = sttStream;
     sttStream = null;
@@ -328,10 +293,6 @@ async function createSpeakerPipeline(
     const durationSec = (segment.length / 16000).toFixed(2);
     logger.info({ userId, durationSec }, `${userId} VAD determined the sentence ended, audio duration ${durationSec}s`);
 
-    // wav 落盘只是旁路调试备份（见 recordings.ts 顶部注释），跟下面的转写结果处理/
-    // 播放顺序分配并行、不 await——segment 是 VAD 输出的 16kHz 单声道音频，跟这句话
-    // 走流式 STT 的那份 PCM 数据是同一份录音内容，只是备份走的是攒好的完整段，不是
-    // 边到边的 chunk。备份写入失败只记日志，不能拖慢或中断转写/翻译/播放这条主链路。
     saveInputRecording(userId, Date.now(), segment, 16000).catch((err) => {
       logger.error({ err, userId }, `Failed to save backup input recording for ${userId}`);
     });
@@ -341,10 +302,6 @@ async function createSpeakerPipeline(
     });
   };
 
-  // vad.feed()/forceEnd() 都会读写共享状态（VAD 的"是否在说话"标记、ONNX 模型的隐藏记忆），
-  // 不能让它们并发重叠地跑，不然会互相踩踏，严重时会让底层 ONNX 推理卡死（实测踩过这个坑）。
-  // 所以这里用跟 playback-queue.js 一样的"排队"模式，两种任务（音频块 / 强制结束）
-  // 都进同一条队列，严格按顺序一个处理完再处理下一个。
   const drainJobQueue = async () => {
     if (draining) return;
     draining = true;
@@ -354,9 +311,6 @@ async function createSpeakerPipeline(
       try {
         if (job.type === 'chunk') {
           const sessionForStt = sttStream ? undefined : await getSession(guildId);
-          // 账单判断提前到这里（开 STT 流之前），纯同步、读的是上面这行已经 await 好的
-          // session 快照——超线就压根不开 STT 流，不产生这句话的 STT 成本，比"转写完了
-          // 才发现超线"更早拦截（见 billing-service.js 的 checkSttAllowed）。
           const sttDecision = sessionForStt ? checkSttAllowed(sessionForStt) : undefined;
           const segments = await vad.feed(job.data, {
             onSpeechStart: () => {
@@ -367,12 +321,10 @@ async function createSpeakerPipeline(
                     { event: 'stt_blocked_by_billing', guildId, userId, reason: sttDecision.reason },
                     `${userId} blocked by billing before opening STT stream: ${sttDecision.reason}`,
                   );
-                  // 不 await：onSpeechStart 是同步回调，vad.feed() 不等它返回的 promise
-                  // （跟下面 openStream() 不被 await 是同一个既有模式）。
                   void sendSttBlockedNotice(guildId, voiceChannel, sttDecision).catch((err) =>
                     logger.error({ err, guildId }, 'Failed to send STT-blocked notice'),
                   );
-                  return; // 不开 STT 流——这句话不会被转写/翻译/播放
+                  return;
                 }
                 const keyterms = getKeyterms(sessionForStt?.game, sessionForStt?.sourceLang);
                 logger.info(
@@ -391,38 +343,19 @@ async function createSpeakerPipeline(
                 sttStream = openStream({
                   language: sessionForStt?.sourceLang,
                   prompt: speakerState.lastTranscript,
-                  // keyterm 是开连接时的 query 参数，连上之后不能中途改（这个项目用的
-                  // 是 Deepgram nova-3 标准流式接口，没有连接期间动态更新关键词的能力，
-                  // 那是更新的 Flux 模型才有的 Configure 消息机制）。keyterms.js 现在
-                  // 按"游戏 + 源语言"两层分组，不再只支持中文——直接把 session.sourceLang
-                  // 传给 getKeyterms，这门语言下这个游戏还没维护关键词（或者 sourceLang/
-                  // game 任一还没配置）都会拿到空数组，不需要在这里手写判断走哪个分支。
                   keyterms,
                 });
               }
             },
           });
-          // 说话过程中，decoder 吐出来的每一块 PCM 除了喂给 VAD 做边界判断，同时也
-          // 原样边到边推给这路 STT 流——不等 VAD 判完整段，STT 全程跟着音频流并行转录。
           sttStream?.pushChunk(job.data);
           for (const segment of segments) {
-            // 播放顺序号必须在这里、同步分配——这一刻（VAD 刚判定"这句话说完了"）
-            // 就是它在整场会话里的实际先后顺序，不能等下面 closeSttStream() 这个异步
-            // 网络调用完成之后再分配，那样分配到的是"STT 响应回来的顺序"，不同说话人
-            // 的 STT 请求耗时不一，起不到重排的作用（见 playback-queue.js 顶部注释）。
             const sequence = await nextPlaybackSequence(guildId);
             const transcribeResult = await closeSttStream();
             if (sequence === null) {
-              // 理论上不会发生：这个说话人的处理流水线只会在 startListening 里
-              // createSession 已经执行过之后才会启动，guild 会话此时必然存在。这里
-              // 只是让 nextPlaybackSequence 的类型（number | null）跟这个运行时不变量
-              // 对齐，不是新增了什么实际会走到的分支。
               logger.error({ userId }, `${userId} failed to allocate a playback sequence — guild session missing unexpectedly`);
               continue;
             }
-            // 号码分配出来的同一刻，先在播放队列里占个"making"位——这时候 STT/翻译/TTS
-            // 都还没跑，只是让 playback-queue.js 的重排缓冲区知道这个号位不是空号（见
-            // playback-queue.js 顶部注释）。
             markMaking(guildId, connection, sequence);
             handleDetectedSegment(segment, sequence, transcribeResult);
           }
@@ -451,7 +384,6 @@ async function createSpeakerPipeline(
               },
               `${userId} speaking ended without a complete VAD segment, closing open STT stream`,
             );
-            // VAD 没有攒出一段完整语音，但这句话对应的 STT 流还开着——关掉，不留悬空连接。
             await closeSttStream();
           } else {
             logger.info(
@@ -482,7 +414,6 @@ async function createSpeakerPipeline(
     drainJobQueue();
   });
 
-  // Discord 判定这个人音频流停了（收到 speaking 'end' 事件）时调用，见上面 onSpeakingEnd。
   speakerRuntime.forceEndSpeech = () => {
     logAudioDiagnostics('speaking_end', true);
     jobQueue.push({ type: 'forceEnd' });

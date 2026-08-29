@@ -7,9 +7,6 @@ import { recordExternalApiUsage } from '../../../application/billing/billing-ser
 const logger = createLogger('deepseek/translate');
 const MODEL = 'deepseek-v4-flash';
 
-// text: 待翻译原文。targetLang: ISO-639-1 代码（如 'en'）。
-// 这个函数满足 application/ports/translate.js 定义的翻译端口签名，
-// 跟 adapter/out/groq/translate.js 是同一个契约的两份实现，可以互换。
 export async function translate(text: string, targetLang: string, options: TranslateOptions = {}): Promise<string> {
   const startedAt = Date.now();
   const completion = await chatCompletion({

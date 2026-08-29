@@ -4,8 +4,6 @@ import { seedProviderPrices } from './adapter/out/db/seed-prices.js';
 import { remainingForPlan } from './application/billing/billing-service.js';
 import { BILLING_PLANS } from './application/billing/plans.js';
 
-// 合法套餐 id 列表从 plans.ts（最终来源是 pricing-plans.json）读出来，不在这里手写——
-// 新增/下架套餐只改那一份 JSON，`plan` 命令的校验和下面的用法提示自动跟着变。
 const PLAN_IDS = Object.keys(BILLING_PLANS);
 
 function usage(): void {
@@ -56,16 +54,6 @@ async function main(): Promise<void> {
       break;
     }
 
-    // 全量重置：drop schema public cascade 把 db/migrations/ 建的所有表/索引/extension
-    // 一次性清空（不用一张张手写 drop table，也不会漏掉以后新加的表），再 create schema
-    // public 建一个空的、当前连接用的角色自动是 owner，不需要额外 grant。schema 重建
-    // 不在这里做——这个 CLI 不再拥有"建表"这个能力（那是 Flyway 的职责，见 db/migrations/
-    // 和 scripts/migrate-db.ts），drop 完之后需要的人自己跑 `npm run migrate` 重建，再
-    // 按需跑 `npm run billing -- seed-prices`。只在"没有真实用户数据、可以全部丢弃"的
-    // 场景用（比如当前还没上线），要求显式传 --yes-drop-everything，打错命令不会误删。
-    // 副作用：Flyway 自己的历史表 flyway_schema_history 也在 public schema 里，一起被
-    // 清空，所以之后 `npm run migrate` 会把 V1 当全新环境正常跑一遍（不需要、也不能再
-    // baseline）——这正是 reset 想要的效果，不是需要额外处理的边界情况。
     case 'reset': {
       if (!args.includes('--yes-drop-everything')) {
         throw new Error('This drops every billing table and all data. Re-run as: npm run billing -- reset --yes-drop-everything');
@@ -92,9 +80,6 @@ async function main(): Promise<void> {
       const [guildId] = args;
       if (!guildId) throw new Error('guildId is required');
       await ensureAccount(guildId);
-      // stt_seconds_remaining/text_chars_remaining 是物化列（billing-service.js 的
-      // syncDailyUsageToDb 在每次它本来就要跑的低频同步点顺手写好），这里直接读，
-      // 不现算——NULL 代表 server 套餐这一项不限量，显示成 'unlimited'。
       const result = await dbPool.query<{
         guild_id: string;
         plan_id: string;
@@ -148,11 +133,6 @@ async function main(): Promise<void> {
     }
 
     case 'credit': {
-      // 2026-08-23：lifetime_cost_usd 是"累计估算成本"（只增不减），不是可花的钱包
-      // 余额,这个命令已经没有它原本"充值"的意义,保留下来纯粹是手工调整/勾账用途
-      // (比如发现 billing_session_ledger 少算了一场会话,手动补一笔)。billing_ledger
-      // 表已经整个删掉(不再是 pay-as-you-go 产品,没有流水可记),这里不再写审计行,
-      // 直接改 lifetime_cost_usd 本身。
       const [guildId, amount] = args;
       if (!guildId || !amount) throw new Error('guildId and amountUsd are required');
       const accountId = await ensureAccount(guildId);
@@ -170,9 +150,6 @@ async function main(): Promise<void> {
       const [guildId, planId] = args;
       if (!guildId || !PLAN_IDS.includes(planId)) throw new Error(`usage: plan <guildId> <${PLAN_IDS.join('|')}>`);
       await ensureAccount(guildId);
-      // 换套餐会改变上限，剩余额度物化列要跟着重算一次，不然要等下一次 60 秒定时同步
-      // 才会追上——那期间 guild 命令会显示按旧套餐算出来的剩余量。用今天已用量（没有
-      // 就是 0，比如换套餐时这个 guild 还没在线）重算一次，不是每次读的时候都现算。
       const usageResult = await dbPool.query<{ stt_seconds: string; text_chars: string }>(
         `select stt_seconds, text_chars from daily_guild_usage where guild_id = $1 and usage_date = current_date`,
         [guildId],

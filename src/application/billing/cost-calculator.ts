@@ -67,17 +67,6 @@ export async function calculateEstimatedCostUsd(client: PoolClient, usage: Exter
   return Number(total.toFixed(8));
 }
 
-// 一场会话（/join 到 /leave）的原始用量按 (stage, provider, model) 分组存在 Redis 里
-// （session.ts 的 accumulateSessionUsage/readSessionUsageBreakdown），/leave 时读出来
-// 算这场会话的 estimated_cost_usd，写进 billing_session_ledger。直接复用上面
-// calculateEstimatedCostUsd（同一份 provider_prices 定价逻辑），每组拼一个"够用"的
-// ExternalApiUsage 形状喂给它——不重新实现一遍定价规则。
-//
-// 已知的简化（不是漏做，是刻意先不做）：这里没有还原 STT keyterm prompting 的 addon
-// 计费（provider_prices 里 price_kind='addon_keyterm_prompting' 那部分）——累加器目前
-// 只按 stage|provider|model 分组，不区分"这段音频用没用 keyterm prompting"，所以这里
-// 算出来的会话成本只包含 base 价格，偏低估。keyterm 场景当前只在源语言锁定中文时启用
-// （见 CLAUDE.md），影响范围有限；真要精确算再给累加器加一个维度。
 export interface SessionCostBreakdownEntry {
   stage: string;
   provider: string;

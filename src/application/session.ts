@@ -22,25 +22,11 @@ export interface Session {
   targetLang: string | undefined;
   ttsProvider: string | undefined;
   game: string | undefined;
-  // 2026-08-23 billing 重设计：以下字段替代了旧的 voiceLimitBlockedDate + 每句话查
-  // Postgres 的 checkBillingAllowed。planId/accountStatus 在 /join 时从 Postgres
-  // 读一次缓存进来（hydrateBillingState，见 billing-service.js），之后整场会话直接读
-  // 这份缓存，不再每句话查库；账号状态/套餐中途在别处被改了，最多要等下次 /join 才会
-  // 生效，这是刻意的取舍（换来零高频 DB 查询）。
   planId: string;
   accountStatus: string;
-  // 今天(UTC)已经用掉的 STT 秒数/翻译输入字符数，从 0（或 /join 时从
-  // daily_guild_usage 读到的今天已用量，见 hydrateBillingState）开始单调递增，
-  // 只增不减——限额判断是"用量 >= 套餐上限"，不是维护一个会减少的"剩余额度"，
-  // 这样 usageDate 跨天重置时只需要清零，不需要重新算"剩余"是多少。
   sttSecondsUsedToday: number;
   textCharsUsedToday: number;
-  // 上面两个计数器对应的是哪个 UTC 日期——每次读写前跟 todayUtc() 比较，不一致就说明
-  // 跨天了，先把旧一天的数字同步进 daily_guild_usage（那才是它们真正归属的日期），
-  // 再清零、把这个字段更新成今天（见 billing-service.js 的 ensureUsageDateCurrent）。
   usageDate: string | undefined;
-  // 这场会话（/join 到 /leave）开始的时间，billing_session_ledger 那一行记录的
-  // session_started_at 用这个，不是"今天第一次用量发生的时间"。
   sessionStartedAt: string | undefined;
 }
 
@@ -50,11 +36,6 @@ function sessionKey(guildId: string): string {
   return `session:guild:${guildId}`;
 }
 
-// 单独一个 hash，不跟主 session hash 混在一起：这里存的是"这场会话至今按
-// stage|provider|model 分组的原始用量"（STT 秒数/LLM token 数/TTS 字符数），只在
-// /leave 时读一次、算出这场会话的 estimated_cost_usd 写进 billing_session_ledger，
-// 跟主 session hash 那些"每句话都要读"的字段生命周期和读取频率完全不同，分开存
-// 互不干扰、也方便单独 del。
 function usageBreakdownKey(guildId: string): string {
   return `session:guild:${guildId}:usage`;
 }
@@ -173,8 +154,6 @@ export async function setTargetLang(guildId: string, lang: string): Promise<bool
   const data = await redisClient.hgetall(key);
   if (Object.keys(data).length === 0) return false;
 
-  // target 保存基础语言码（如 'en'/'zh'），跟 TTS_PROVIDER_BY_LANG 的 key 保持一致。
-  // TTS 不需要地区颗粒度；翻译 prompt 里只有 zh 会单独按 zh-TW 处理。
   const ttsProvider = resolveTtsProvider(lang);
   await redisClient.hset(key, 'targetLang', lang);
   if (ttsProvider) {
@@ -260,11 +239,6 @@ export async function listSpeakers(guildId: string): Promise<SpeakerState[]> {
   return Array.from((await readSpeakers(guildId)).values());
 }
 
-// Billing 每日限额提醒去重（见 billing-service.js 的 checkSttAllowed/checkTranslateAllowed）：
-// 字段存的是"上次发过这条提醒的时间戳"，不是布尔值——每次检查时把它的 UTC 日期跟
-// todayUtc() 比较，发现已经跨天了就当作没发过（先清掉这个字段，再走跟"从没发过"完全
-// 一样的判断逻辑）。放在 session 的 Redis hash 上而不是单独的字段/Session 接口里，是
-// 因为这纯粹是 billing-service.js 内部用的去重标记，其它读 session 的地方不需要关心它。
 type BillingNotificationField = 'billingWarnedAt' | 'billingBlockedNotifiedAt' | 'sttBlockedNotifiedAt';
 
 export async function shouldSendBillingNotification(guildId: string, field: BillingNotificationField): Promise<boolean> {
@@ -273,7 +247,6 @@ export async function shouldSendBillingNotification(guildId: string, field: Bill
   if (!sentAt) return true;
 
   if (sentAt.slice(0, 10) !== todayUtc()) {
-    // 跨天了，清空旧标记，当作今天还没发过
     await redisClient.hdel(key, field);
     return true;
   }
@@ -285,10 +258,6 @@ export async function markBillingNotificationSent(guildId: string, field: Billin
   await redisClient.hset(sessionKey(guildId), field, new Date().toISOString());
 }
 
-// /join 时（voice-listener.js 的 startListening）从 Postgres 读一次账号状态/套餐/
-// 今天已用量，写进 Redis session hash——之后整场会话的账单判断（checkSttAllowed/
-// checkTranslateAllowed）都只读这份缓存，不再查库。usageDate 记成 todayUtc()，
-// 之后每次用量累加前用 ensureUsageDateCurrent 检查是否需要跨天重置。
 export async function hydrateBillingState(
   guildId: string,
   state: { planId: string; accountStatus: string; sttSecondsUsedToday: number; textCharsUsedToday: number },
@@ -302,9 +271,6 @@ export async function hydrateBillingState(
   });
 }
 
-// 用量计数器只增不减，HINCRBYFLOAT/HINCRBY 天然原子，不需要额外加锁（见 CLAUDE.md
-// billing 重设计一节）——STT 时长/翻译字符数在 provider 调用真正返回之前都不知道
-// 准确值，"先放行、超了下次才拦"是刻意的设计取舍，不是漏做校验。
 export async function incrementSttSecondsUsed(guildId: string, seconds: number): Promise<number> {
   return redisClient.hincrbyfloat(sessionKey(guildId), 'sttSecondsUsedToday', seconds).then(Number);
 }
@@ -313,10 +279,6 @@ export async function incrementTextCharsUsed(guildId: string, chars: number): Pr
   return redisClient.hincrby(sessionKey(guildId), 'textCharsUsedToday', chars);
 }
 
-// 跨天重置：把当前 sttSecondsUsedToday/textCharsUsedToday（属于 usageDate 那一天）清零，
-// usageDate 更新成今天。调用方（billing-service.js 的 ensureUsageDateCurrent）负责在
-// 清零之前，先把这两个数字同步进 daily_guild_usage 的 usageDate 那一行——不然跨天瞬间
-// 那一小段用量会凭空丢失，见 CLAUDE.md「DB 保持 source of truth」。
 export async function resetDailyUsageCounters(guildId: string): Promise<void> {
   await redisClient.hset(sessionKey(guildId), {
     sttSecondsUsedToday: '0',
@@ -325,10 +287,6 @@ export async function resetDailyUsageCounters(guildId: string): Promise<void> {
   });
 }
 
-// stage|provider|model 三段拼一个 field 前缀，同一个 metric（比如 promptTokens）在
-// 同一个 provider/model 组合下用 HINCRBYFLOAT 原子累加——float 是因为 STT 秒数/成本
-// 类的量本来就不是整数，用同一个命令类型比"数字类型用 HINCRBY、浮点类型用
-// HINCRBYFLOAT"两套分支简单，HINCRBYFLOAT 对纯整数值一样准确。
 function usageMetricField(stage: string, provider: string, model: string, metric: string): string {
   return `${stage}|${provider}|${model}|${metric}`;
 }
@@ -355,9 +313,6 @@ export interface UsageBreakdownGroup {
   metrics: Record<string, number>;
 }
 
-// /leave 时（billing-service.js 的 finalizeSessionLedger）读一次，把扁平的
-// "stage|provider|model|metric -> 数值" 字段还原成按 (stage, provider, model) 分组的
-// 结构，喂给 cost-calculator.js 复用 provider_prices 定价逻辑算这场会话的总成本。
 export async function readSessionUsageBreakdown(guildId: string): Promise<UsageBreakdownGroup[]> {
   const data = await redisClient.hgetall(usageBreakdownKey(guildId));
   const groups = new Map<string, UsageBreakdownGroup>();

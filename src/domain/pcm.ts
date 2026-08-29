@@ -1,7 +1,5 @@
-// Discord 语音数据固定是 48kHz 双声道 16-bit PCM（little-endian）。
-// VAD 只需要单声道，这里做左右声道平均+归一化到 [-1, 1] 的 Float32。
 export function stereoInt16BufferToMonoFloat32(buffer: Buffer): Float32Array {
-  const bytesPerFrame = 4; // 2 channels * 2 bytes
+  const bytesPerFrame = 4;
   const sampleCount = Math.floor(buffer.length / bytesPerFrame);
   const out = new Float32Array(sampleCount);
 
