@@ -188,6 +188,21 @@ sudo systemctl restart postgresql@16-main
 
 装完之后正常走上面的部署流程(`npm run migrate` 会把 V3 应用上,建好扩展),不需要额外手动 `create extension`。这一步只在这台 droplet 第一次引入 TimescaleDB 时做一次,以后部署不用重复。
 
+### 一次性:注册每日用量/花费汇总的 pm2 定时任务(只需要做一次)
+
+`src/rollup-daily-usage.ts`(`npm run rollup-usage`)每天把前一天的 `usage_events` 按 `(guild_id, stage, provider, model)` 聚合、算好花费,写进 `daily_usage_cost`(见 `db/migrations/V6`),给报表/看板用,不用每次查询都现算。这是个跑一次就退出的批处理脚本,不是常驻服务——不用系统 crontab,直接用 pm2 自带的 `--cron-restart` 功能注册,跟 cicada 主进程用同一套工具管理,日志统一走 `pm2 logs`:
+
+```bash
+pm2 start npm --name cicada-rollup --cron-restart="15 0 * * *" --no-autorestart -- run rollup-usage
+pm2 save
+```
+
+- `--cron-restart` 是 pm2 内置的"按 cron 表达式定时拉起进程"功能,不是"进程常驻、定时重启"——配合 `--no-autorestart`(跑完正常退出不重启)就是标准的"每天固定时间跑一次、跑完自己退出"效果,不会像 cicada 主进程一样一直占着内存
+- `15 0 * * *` 是 UTC 时间每天 00:15 跑(pm2 的 cron 表达式按系统时区解析,这台 droplet 装机默认就是 UTC,`timedatectl` 能确认),晚 15 分钟是留缓冲——项目里所有"天"的切分都是 UTC(`todayUtc()`/`usage_date` 同一个口径),跑太早可能漏掉前一天最后几分钟才落地的调用(单次外部请求最坏卡到 `API_TIMEOUT_MS` 量级,15 分钟绰绰有余)
+- 幂等,可以安全重跑:`npm run rollup-usage -- 2026-08-25` 手动传日期能回填/重算某一天(比如这个定时任务哪天没跑成功,事后补跑)
+- `pm2 save` 把这个定时任务写进 pm2 的持久化进程列表,droplet 重启后 pm2 恢复进程时会带上它,不需要每次重启服务器手动重新注册
+- 排查:`pm2 logs cicada-rollup` 看历史执行日志;`pm2 describe cicada-rollup` 确认 cron 表达式生效
+
 ---
 
 ## 游戏黑话/术语库维护流程
