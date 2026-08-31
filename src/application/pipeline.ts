@@ -13,6 +13,7 @@ import { enqueuePlayback, skipPlaybackSequence, checkBacklogWarning, BACKLOG_WAR
 import { getSession, listSpeakerEntries, saveSpeaker, type SpeakerState } from './session.js';
 import { assignVoice } from './voice-assignment.js';
 import { checkTranslateAllowed, recordExternalApiUsage } from './billing/billing-service.js';
+import { recordTranscriptEvent } from './transcripts/transcript-service.js';
 import { createLogger } from '../adapter/out/logger.js';
 
 const logger = createLogger('pipeline');
@@ -114,6 +115,7 @@ export async function handleSegment(
     const stamp = Date.now();
     logger.info({ ...ctx, who, sourceLang: session.sourceLang }, `${who} source language: ${session.sourceLang}`);
 
+    const sourceLang = session.sourceLang;
     const targetLang = session.targetLang;
     const provider = session.ttsProvider;
     const baseTargetLang = targetLang;
@@ -194,6 +196,7 @@ export async function handleSegment(
     let textForTranslation = transcriptText;
     let cacheKey: string | undefined;
     let translatedText: string | undefined;
+    let hitCount = 0;
 
     if (cacheLookup.kind === 'hit') {
       cacheKey = cacheLookup.cacheKey;
@@ -212,12 +215,9 @@ export async function handleSegment(
     }
 
     if (translatedText === undefined) {
-      const { text: preparedText, hitCount } = applyTerminology(
-        textForTranslation,
-        session.sourceLang,
-        baseTargetLang,
-        session?.game,
-      );
+      const applied = applyTerminology(textForTranslation, session.sourceLang, baseTargetLang, session?.game);
+      const preparedText = applied.text;
+      hitCount = applied.hitCount;
       if (hitCount > 0) {
         logger.info({ ...ctx, who, hitCount, preparedText }, `${who} matched ${hitCount} term(s), sending to translation after preprocessing: "${preparedText}"`);
       }
@@ -241,6 +241,28 @@ export async function handleSegment(
       logger.info({ ...ctx, who }, `${who} translation result is empty, skipping playback`);
       return;
     }
+
+    // 要不要写 transcript_events 只看这个缓存的布尔标志（/join 时从
+    // guilds.transcript_retention_enabled 快照进 session，见 trans-sessions.ts），
+    // 不看 session.transSessionId 是否存在——那一行现在无条件被创建（billing 结算
+    // 需要），不能再当"这个 guild 开没开对话素材留存"的信号。
+    const transSessionId = session.transSessionId;
+    if (session.transcriptRetentionEnabled && transSessionId) {
+      recordTranscriptEvent({
+        guildId,
+        sessionId: transSessionId,
+        userId,
+        sequence,
+        gameId: session.game,
+        sourceLang,
+        targetLang,
+        transcriptText,
+        translatedText,
+        termHitCount: hitCount,
+        cacheHit: cacheLookup.kind === 'hit',
+      }).catch((err) => logger.error({ err, ...ctx, who }, `${who} failed to record transcript event`));
+    }
+
     if (!provider) {
       logger.info(
         { ...ctx, who, targetLang },

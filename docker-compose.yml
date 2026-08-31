@@ -10,7 +10,10 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
 
   postgres:
-    image: postgres:17
+    # 换成带 TimescaleDB 的镜像（普通 postgres:17 装不了 timescaledb 扩展，见
+    # db/migrations/V3__enable_timescaledb.sql）。换镜像不是原地升级，已有本地
+    # volume 里的数据要先导出再导入，步骤见 README「本地 Postgres」一节。
+    image: timescale/timescaledb:latest-pg17
     container_name: cicada-postgres
     restart: unless-stopped
     environment:

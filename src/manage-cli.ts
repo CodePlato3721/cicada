@@ -8,32 +8,41 @@ const PLAN_IDS = Object.keys(BILLING_PLANS);
 
 function usage(): void {
   console.log(`Usage:
-  npm run billing -- seed-prices
-  npm run billing -- reset --yes-drop-everything
-  npm run billing -- summary
-  npm run billing -- guild <guildId>
-  npm run billing -- sessions <guildId> [limit]
-  npm run billing -- credit <guildId> <amountUsd> [description]
-  npm run billing -- plan <guildId> <${PLAN_IDS.join('|')}>
-  npm run billing -- suspend <guildId>
-  npm run billing -- resume <guildId>
+  npm run manage -- seed-prices
+  npm run manage -- reset --yes-drop-everything
+  npm run manage -- summary
+  npm run manage -- guild <guildId>
+  npm run manage -- sessions <guildId> [limit]
+  npm run manage -- credit <guildId> <amountUsd> [description]
+  npm run manage -- plan <guildId> <${PLAN_IDS.join('|')}>
+  npm run manage -- suspend <guildId>
+  npm run manage -- resume <guildId>
+  npm run manage -- transcripts <guildId> <on|off>
 
 Note: schema migrations moved to Flyway (see db/migrations/, run via "npm run migrate") —
 this CLI no longer has a "migrate" subcommand. "reset" only drops the schema now; run
 "npm run migrate" afterwards to rebuild it.
 
-Note: usage_events/billing_ledger tables were dropped on 2026-08-23 (per-call DB writes
-were too high-frequency, see CLAUDE.md; and this product isn't pay-as-you-go, so there's
-no recharge/spend ledger to track). Per-call audit info now lives in local JSONL files
-(EVENTS_DIR); cost is aggregated once per session into billing_session_ledger — use
-"sessions" to inspect it. Plan upgrade/downgrade history isn't tracked in a table yet
-(see CLAUDE.md — deliberately deferred, not forgotten).`);
+Note: this CLI was renamed from "billing-cli" (npm run billing) — it manages the "guilds"
+table (renamed from "billing_accounts", see db/migrations/V2), which is per-guild account
+state in general, not just billing. Actual billing logic (plans, cost calculation) is
+still under src/application/billing/.
+
+Note: usage_events (per-call STT/translate/TTS audit log) is back as of the TimescaleDB
+migration (db/migrations/V4) — it was dropped once before (2026-08-23) because per-call
+writes to a plain Postgres table didn't scale, and replaced with local JSONL files
+(EVENTS_DIR). That JSONL path (adapter/out/events-log.ts) has been removed; usage_events
+is now a TimescaleDB hypertable, built for exactly this write pattern. Cost is still
+aggregated once per session into trans_sessions (renamed from billing_session_ledger,
+see db/migrations/V5 — this table also backs the transcript_events session grouping,
+one row per /join~/leave) — use "sessions" to inspect it. Plan upgrade/downgrade history
+isn't tracked in a table yet (see CLAUDE.md — deliberately deferred, not forgotten).`);
 }
 
 async function ensureAccount(guildId: string): Promise<string> {
   const result = await dbPool.query<{ id: string }>(
     `
-      insert into billing_accounts (guild_id)
+      insert into guilds (guild_id)
       values ($1)
       on conflict (guild_id) do update set updated_at = now()
       returning id
@@ -56,11 +65,11 @@ async function main(): Promise<void> {
 
     case 'reset': {
       if (!args.includes('--yes-drop-everything')) {
-        throw new Error('This drops every billing table and all data. Re-run as: npm run billing -- reset --yes-drop-everything');
+        throw new Error('This drops every table and all data. Re-run as: npm run manage -- reset --yes-drop-everything');
       }
       console.log('Dropping public schema (all tables, all data)...');
       await dbPool.query('drop schema public cascade; create schema public;');
-      console.log('Schema dropped. Next: `npm run migrate` to rebuild it, then `npm run billing -- seed-prices` if you need provider prices back.');
+      console.log('Schema dropped. Next: `npm run migrate` to rebuild it, then `npm run manage -- seed-prices` if you need provider prices back.');
       break;
     }
 
@@ -70,7 +79,7 @@ async function main(): Promise<void> {
           count(*)::int as accounts,
           coalesce(sum(lifetime_cost_usd), 0)::text as total_lifetime_cost_usd,
           count(*) filter (where status = 'suspended')::int as suspended_accounts
-        from billing_accounts
+        from guilds
       `);
       console.table(result.rows);
       break;
@@ -87,6 +96,7 @@ async function main(): Promise<void> {
         lifetime_cost_usd: string;
         stt_seconds_remaining: string | null;
         text_chars_remaining: number | null;
+        transcript_retention_enabled: boolean;
         created_at: string;
         updated_at: string;
         today_stt_seconds: string;
@@ -94,11 +104,11 @@ async function main(): Promise<void> {
       }>(
         `
           select a.guild_id, a.plan_id, a.status, a.lifetime_cost_usd,
-                 a.stt_seconds_remaining, a.text_chars_remaining,
+                 a.stt_seconds_remaining, a.text_chars_remaining, a.transcript_retention_enabled,
                  a.created_at, a.updated_at,
                  coalesce(d.stt_seconds, 0) as today_stt_seconds,
                  coalesce(d.text_chars, 0) as today_text_chars
-          from billing_accounts a
+          from guilds a
           left join daily_guild_usage d on d.guild_id = a.guild_id and d.usage_date = current_date
           where a.guild_id = $1
         `,
@@ -120,8 +130,8 @@ async function main(): Promise<void> {
       if (!guildId) throw new Error('guildId is required');
       const result = await dbPool.query(
         `
-          select session_started_at, session_ended_at, duration_seconds, estimated_cost_usd, usage_breakdown
-          from billing_session_ledger
+          select session_started_at, session_ended_at, duration_seconds, estimated_cost_usd, usage_breakdown, game_id
+          from trans_sessions
           where guild_id = $1
           order by session_started_at desc
           limit $2
@@ -138,7 +148,7 @@ async function main(): Promise<void> {
       const accountId = await ensureAccount(guildId);
       const amountUsd = Number(amount);
       if (!Number.isFinite(amountUsd)) throw new Error('amountUsd must be a number');
-      await dbPool.query(`update billing_accounts set lifetime_cost_usd = lifetime_cost_usd + $2, updated_at = now() where id = $1`, [
+      await dbPool.query(`update guilds set lifetime_cost_usd = lifetime_cost_usd + $2, updated_at = now() where id = $1`, [
         accountId,
         amountUsd,
       ]);
@@ -157,7 +167,7 @@ async function main(): Promise<void> {
       const used = usageResult.rows[0] ?? { stt_seconds: '0', text_chars: '0' };
       const { sttSecondsRemaining, textCharsRemaining } = remainingForPlan(planId, Number(used.stt_seconds), Number(used.text_chars));
       await dbPool.query(
-        `update billing_accounts set plan_id = $2, stt_seconds_remaining = $3, text_chars_remaining = $4, updated_at = now() where guild_id = $1`,
+        `update guilds set plan_id = $2, stt_seconds_remaining = $3, text_chars_remaining = $4, updated_at = now() where guild_id = $1`,
         [guildId, planId, sttSecondsRemaining, textCharsRemaining],
       );
       console.log(`Set ${guildId} plan to ${planId}.`);
@@ -170,8 +180,24 @@ async function main(): Promise<void> {
       if (!guildId) throw new Error('guildId is required');
       await ensureAccount(guildId);
       const status = command === 'suspend' ? 'suspended' : 'active';
-      await dbPool.query(`update billing_accounts set status = $2, updated_at = now() where guild_id = $1`, [guildId, status]);
+      await dbPool.query(`update guilds set status = $2, updated_at = now() where guild_id = $1`, [guildId, status]);
       console.log(`Set ${guildId} status to ${status}.`);
+      break;
+    }
+
+    case 'transcripts': {
+      const [guildId, toggle] = args;
+      if (!guildId || (toggle !== 'on' && toggle !== 'off')) throw new Error('usage: transcripts <guildId> <on|off>');
+      await ensureAccount(guildId);
+      const enabled = toggle === 'on';
+      await dbPool.query(`update guilds set transcript_retention_enabled = $2, updated_at = now() where guild_id = $1`, [
+        guildId,
+        enabled,
+      ]);
+      console.log(
+        `Set ${guildId} transcript_retention_enabled to ${enabled}. Takes effect on the next /join (session already in ` +
+          'progress keeps whatever it started with).',
+      );
       break;
     }
 

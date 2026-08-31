@@ -1,8 +1,12 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { getSession, setSourceLang, setTargetLang, setGame } from '../../../application/session.js';
+import { updateTransSessionGame } from '../../../application/trans-sessions.js';
 import { GAMES } from '../../../domain/games.js';
 import { SUPPORTED_SOURCE_LANGS } from '../../../application/ports/stt.js';
 import { autocompleteLangOption, SUPPORTED_TARGET_VALUES } from './language-choices.js';
+import { createLogger } from '../../out/logger.js';
+
+const logger = createLogger('commands/config');
 
 const GAME_CHOICES = GAMES.map((game) => ({ name: game.name, value: game.id }));
 
@@ -61,7 +65,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await setSourceLang(interaction.guildId!, source);
   await setTargetLang(interaction.guildId!, target);
-  if (gameId) await setGame(interaction.guildId!, gameId);
+  if (gameId) {
+    await setGame(interaction.guildId!, gameId);
+    await updateTransSessionGame(interaction.guildId!, gameId).catch((err) => logger.error({ err }, 'Failed to update trans_sessions.game_id'));
+  }
 
   const game = gameId ? GAMES.find((g) => g.id === gameId) : session.game ? GAMES.find((g) => g.id === session.game) : undefined;
   const gameLabel = game ? game.name : 'none (general translation)';

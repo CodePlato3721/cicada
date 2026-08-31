@@ -1,6 +1,10 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { GAMES } from '../../../domain/games.js';
 import { setGame } from '../../../application/session.js';
+import { updateTransSessionGame } from '../../../application/trans-sessions.js';
+import { createLogger } from '../../out/logger.js';
+
+const logger = createLogger('commands/game');
 
 export const data = new SlashCommandBuilder()
   .setName('game')
@@ -18,6 +22,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.reply({ content: "I haven't joined a voice channel yet — use /join first.", ephemeral: true });
     return;
   }
+  await updateTransSessionGame(interaction.guildId!, gameId).catch((err) => logger.error({ err }, 'Failed to update trans_sessions.game_id'));
 
   const game = GAMES.find((g) => g.id === gameId);
   await interaction.reply({ content: `Current game set to: ${game?.name ?? gameId}`, ephemeral: true });

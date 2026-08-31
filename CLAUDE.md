@@ -147,11 +147,57 @@ STT/TTS 已切到 Deepgram,其额度/计费规则需登录 console.deepgram.com 
 
 **`billing-cli.ts` 的变化**:`migrate` 子命令已删除(改用 `npm run migrate`);`reset`(全量清库,只在没有真实用户数据时用)现在只负责 `drop schema public cascade`,不再自己重建——重建交给 `npm run migrate`,drop 会连 `flyway_schema_history` 一起清空,所以 reset 之后再跑一次 migrate,V1 会被当全新环境正常执行一遍,不需要也不能再 baseline,这是 reset 想要的效果。`seed-prices` 命令不受影响,价格数据跟 schema 变更是两回事。
 
+**注**:这一节里的 `billing_accounts`/`billing-cli.ts` 是接入 Flyway 那天(2026-08-27)的真实名字,后来在引入 TimescaleDB 时(见下面「TimescaleDB」一节)改名成了 `guilds`/`manage-cli.ts`——保留这一节原文不是笔误,是记录当时的决策背景,改名的理由和范围见下一节。
+
 ### 选型过程:为什么不是 Prisma Migrate,不是纯手写累积脚本
 完整讨论过程见开发过程中的对话记录,简要结论:
 - **Prisma Migrate** 要用上就得接受 Prisma 那一整套 ORM(`schema.prisma` DSL + 生成的 `PrismaClient` + 影子数据库做 diff),项目现在是裸 `pg` 手写 SQL,不想为了一个迁移工具连带把查询层也换掉,性价比不高
 - **纯手写累积幂等脚本**(旧方案)本身不算错,是被认可的"声明式/收敛式" migration 模式,但会无限增长、有代价(见上面「问题」),规模变大后维护成本会持续上升
 - **Flyway** 是版本化迁移的老牌工具,SQL 文件就是普通 SQL、没有 DSL、没有代码生成,跟现有的手写 SQL 风格摩擦最小;顾虑过它是 Java 生态工具,但 command-line 发行版自带 JRE,不需要额外装 Java,而且确认了 Community Edition 完全免费、不需要 license key
+
+---
+
+## TimescaleDB:用量审计事件 + 对话素材收集(2026-08-29 接入)
+
+### 问题
+两类数据都是"按次写入、写入频率高"的时序数据,普通 Postgres 表扛不住:
+1. **用量审计**(每次 STT/翻译/TTS 调用的耗时、token 数、供应商等):历史上真的建过 `usage_events` 表,2026-08-23 因为写入频率太高被删掉,改成写本地 `.jsonl` 文件(`EVENTS_DIR`,`src/adapter/out/events-log.ts`)——绕开了数据库,但代价是数据散落在服务器本地磁盘上,没法用 SQL 查、也没法跨会话/跨 guild 聚合分析。
+2. **对话素材**(每句话的原文转写 + 译文):此前完全没有收集,是这次新加的能力,目的是之后跑一个独立的"discovery" agent 分析特定场景下的高频词/黑话,生成 artifact 反哺翻译效果——文字数据量小(不是音频),但同样是高频次写入。
+
+两者本质是同一个问题:需要一个"扛得住高频 insert、又能用 SQL 查"的存储。
+
+### 方案:自建 TimescaleDB(生产 droplet 上装 apt 扩展包,不是托管服务)
+TimescaleDB 是 Postgres 扩展,不是另起一个数据库——继续用同一个 `DATABASE_URL`、同一个 `pg` 查询层,只是给两张高频写入的表建成 hypertable(`create_hypertable`,按时间自动分区)并加压缩策略(`add_compression_policy`,7/30 天后自动压缩旧数据,不需要手动维护)。选择自己装而不是买 Timescale 官方托管云服务——这台 droplet 本来就是自己管的最小规格机器(1 vCPU/1GB,见「部署环境」一节),额外托管服务的账单和这台机器的定位不匹配。
+
+生产环境安装步骤(apt 装 `timescaledb-2-postgresql-<version>` + `timescaledb-tune` + 重启对应集群)是一次性运维操作,不在 Flyway 迁移文件职责范围内,写在 README「部署到服务器」一节;`db/migrations/V3__enable_timescaledb.sql` 只负责 `create extension timescaledb`,前提是扩展包已经装好。**版本号要跟 `pg_lsclusters` 的实际输出对齐,不要假设**——2026-08-30 第一次给生产 droplet 装的时候踩过坑:文档最初想当然写的是 Postgres 17(照搬本地开发用的 `timescale/timescaledb:latest-pg17` 镜像版本),但生产这台 droplet 实际一直跑的是 **Postgres 16**;装 PGDG 源时如果手滑装了 `postgresql-17`/`timescaledb-2-postgresql-17`,`postgresql-common` 的 apt hook 不会报错阻止,而是自动新建一个独立的、空的 17 集群(默认端口 5433),看起来"装成功了"但其实跟应用实际连的 5432 端口这个 16 集群毫无关系——装完务必用 `pg_lsclusters` 核实只有预期的那个集群,版本装错了要用 `pg_dropcluster <version> main --stop` 清掉,不要让空集群常驻占内存(这台机器有过 OOM 历史,见「部署环境与当前进度」一节)。
+
+### `usage_events`:替代 JSONL,不是新增一条链路
+2026-08-23 从 Postgres 挪到本地 JSONL 的理由(写入频率)现在被 hypertable 解决了,所以这次是**把 `EVENTS_DIR`/JSONL 这条路径整个删掉**(`src/adapter/out/events-log.ts` 已删除,`.env.example`/`config.ts` 的 `EVENTS_DIR` 一并移除),不是"两条路径都保留"。写入方式沿用项目一贯的 fire-and-forget:`recordExternalApiUsage` 里 `insertUsageEvent(...).catch(...)` 只记日志、不阻塞主翻译链路,跟 STT/翻译/TTS 三次外部请求本身的失败处理是同一个模式。字段覆盖 STT/翻译/TTS 三个环节各自会用到的量(耗时、字符数、token 数、音频时长/字节数等),供应商返回的原始 usage 对象额外整个存一份进 `raw jsonb` 兜底,不需要每加一个新字段都改表结构。
+
+### `trans_sessions`:billing 和对话素材共用同一个 session 概念(2026-08-29 合并)
+最初设计成两张表:`billing_session_ledger`(`/leave` 时一次性 insert 一整行,记账用)和 `transcript_sessions`(`/join` 时先 insert 拿 `id`,`/leave` 时再 update `ended_at`,给对话素材分组用)。后来发现两者本质是同一个实体——一次 `/join`~`/leave` 的翻译会话——拆两张表是在重复建模同一个东西,合并成一张表 `trans_sessions`(`billing_session_ledger` 改名而来,见 `db/migrations/V5`)。
+
+- **行的生命周期是"插入早、增量更新",不是一次性写完**:`/join` 时就 insert 一行(此刻只知道 `guild_id`/`session_started_at`,`openTransSession`,见 `src/application/trans-sessions.ts`);会话进行中 `/game`、`/config` 切换游戏时 update `game_id`(`updateTransSessionGame`);`/leave` 时 update 补齐 `session_ended_at`/`duration_seconds`/`estimated_cost_usd`/`usage_breakdown`(`finalizeSessionLedger`,留在 `billing-service.ts` 里,因为要顺带算费用)。原来两个表分别对应"结束时一次性 insert"和"开始 insert、结束再 update"两种不同的生命周期,现在统一成后者。
+- 这行现在**无条件插入**(不看 `guilds.transcript_retention_enabled`)——billing 结算不管这个 guild 有没有开对话素材留存,这两件事互不影响。`session_started_at`/`session_ended_at`/`duration_seconds` 原来是 not null(因为原来一次性 insert 全填完),现在放宽成 nullable(`/join` 那一刻还不知道后两个),`V1` 里已有的 `check (session_ended_at >= session_started_at)` 约束不用动——某一列是 null 时这个表达式算 null,Postgres 里 check 约束遇到 null 视为通过。
+- **`transcript_events` 要不要写,只看应用层缓存的一个布尔标志,不看 `trans_sessions` 这一行**:合并前"`transcript_sessions` 这行存不存在"本身就是"这个 guild 开没开对话素材留存"的信号(不开就跳过整个 session 创建);合并后这行无条件存在,不能再当这个信号用。改成 `openTransSession` 在 `/join` 时查一次 `guilds.transcript_retention_enabled`,连同新插入行的 `id` 一起存进 Redis session(`session.transSessionId` + `session.transcriptRetentionEnabled`,见 `session.ts` 的 `setTransSession`)。`pipeline.ts` 判断要不要 `recordTranscriptEvent` 时看 `session.transcriptRetentionEnabled` 这个缓存值,不查库、也不看 `transSessionId` 是否存在。开关切换不影响进行中的 session(下次 `/join` 才生效),用 `npm run manage -- transcripts <guildId> on|off` 管理(见下面 CLI 改名)。
+
+### `transcript_events`:对话素材,挂在 `trans_sessions` 上
+对话素材要解决的问题是"以后跑 discovery agent 分析高频词"——这个分析天然是按"一次通话"为单位的(同一场 `/join`~`/leave` 期间的对话有上下文关联性),所以每句话都挂一个 `session_id` 外键关联到 `trans_sessions`,不能只按 `guild_id` 打散存。
+
+- `transcript_events`:hypertable,每句话一行(转写原文 + 译文 + 命中术语数 + 是否命中翻译缓存,还有写入时刻的 `game_id`/`source_lang`/`target_lang` 快照——同一个 session 中途可能切语言/切游戏,按写入时刻的实际配置记录才准确)。
+- **没有过期/保留时长限制**——对话素材是持续积累的分析素材,不是审计日志,不设 TTL(这点和 `usage_events` 不一样,`usage_events` 目前也没设,但性质上更像可以后续按需加保留策略的运维数据;`transcript_events` 是产品资产,故意不设上限)。压缩策略(30 天后压缩)只是为了省存储空间,压缩不等于删除,压缩后的数据还能查,只是查询变慢一些。
+
+**默认关闭,per-guild opt-in**:语音转写内容是用户说话内容的持久化留存,不能像 `usage_events`(纯耗时/token 数,不含说话内容)一样默认全量收集。`guilds.transcript_retention_enabled`(见下)默认 `false`——具体怎么门控见上面「`trans_sessions`」一节。
+
+### `billing_accounts` 改名 `guilds`,`billing-cli.ts` 改名 `manage-cli.ts`
+`billing_accounts` 早就不只是"计费账户"——已经在存 `stt_seconds_remaining`/`text_chars_remaining` 这类运行时用量状态,这次还要加一个跟计费完全无关的 `transcript_retention_enabled` 开关。讨论过两个替代方案,都被否掉了:
+- 单独建一张 `guild_settings` 表存这个开关:跟 `billing_accounts` 是高度重合的 1:1 实体(都是"每个 guild 一行"),拆两张表容易让人误解成两个不同的东西,浪费
+- 直接在 `billing_accounts` 上加列:表名跟内容不符的问题还是没解决,新加的列越来越不"billing"
+
+最终方案是给表改名 `guilds`——它真实的定位是"每个 guild 一行的账户/配置汇总表",计费信息只是其中一部分。**只改表名和管理它的 CLI,不改计费逻辑本身的名字**:`src/application/billing/`(套餐定价、成本计算)依然叫 billing,这部分逻辑本身就是真正的计费,改名没有必要也会造成混淆。CLI 同理改名 `billing-cli.ts` → `manage-cli.ts`(`npm run billing` → `npm run manage`),因为它现在管的不只是 billing 相关操作(新增了 `transcripts <guildId> on|off`)。自动生成的约束名(`billing_accounts_pkey`/`billing_accounts_guild_id_key`/`billing_accounts_plan_id_check`/`billing_accounts_status_check`)在 `V2` 迁移里用 `alter table ... rename constraint` 一并改成 `guilds_*`,避免 `\d guilds` 看到一堆历史包袱(`RENAME CONSTRAINT` 对主键/唯一约束会连带把背后的索引也改名,不需要另外 `ALTER INDEX`)。
+
+### 本地开发:docker-compose 镜像切换 + 手动导出/导入
+本地 `docker-compose.yml` 的 Postgres 镜像从 `postgres:17` 换成 `timescale/timescaledb:latest-pg17`——这不是原地升级,旧镜像的数据卷对新镜像来说是认不出的(TimescaleDB 镜像的初始化逻辑不一样),所以旧环境要先 `pg_dump` 导出、换镜像重建容器、再 `psql` 导入回去,具体命令见 README「本地 Postgres」一节。全新环境(没起过旧容器)不受影响,直接用新镜像起数据库即可。
 
 ---
 
