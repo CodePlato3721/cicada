@@ -1,7 +1,6 @@
 import type { VoiceBasedChannel } from 'discord.js';
 import { dbPool } from '../../adapter/out/db/client.js';
 import { createLogger } from '../../adapter/out/logger.js';
-import { appendUsageEvent, logEventsWriteFailure } from '../../adapter/out/events-log.js';
 import { todayUtc } from '../../domain/date.js';
 import { toBaseLang } from '../../domain/language.js';
 import {
@@ -46,7 +45,7 @@ export async function ensureAccount(
 ): Promise<{ id: string; planId: BillingPlanId; status: string }> {
   const result = await client.query<{ id: string; plan_id: BillingPlanId; status: string }>(
     `
-      insert into billing_accounts (guild_id, stt_seconds_remaining, text_chars_remaining)
+      insert into guilds (guild_id, stt_seconds_remaining, text_chars_remaining)
       values ($1, $2, $3)
       on conflict (guild_id) do update set updated_at = now()
       returning id, plan_id, status
@@ -91,7 +90,7 @@ async function syncDailyUsageToDb(guildId: string, usageDate: string, sttSeconds
 
   const { sttSecondsRemaining, textCharsRemaining } = remainingForPlan(planId, sttSeconds, textChars);
   await dbPool.query(
-    `update billing_accounts set stt_seconds_remaining = $2, text_chars_remaining = $3, updated_at = now() where guild_id = $1`,
+    `update guilds set stt_seconds_remaining = $2, text_chars_remaining = $3, updated_at = now() where guild_id = $1`,
     [guildId, sttSecondsRemaining, textCharsRemaining],
   );
 }
@@ -197,6 +196,47 @@ export async function checkTranslateAllowed(guildId: string, session: Session, t
   return { allowed: true, planId: plan.id, warningMessage };
 }
 
+// usage_events 是 TimescaleDB hypertable（见 db/migrations/V4），写入失败只记日志、
+// 不阻塞主流程——跟这个表之前用 JSONL 兜底时同样的可靠性取向，只是换了存储介质。
+async function insertUsageEvent(usage: ExternalApiUsage): Promise<void> {
+  await dbPool.query(
+    `
+      insert into usage_events (
+        guild_id, user_id, sequence, stage, provider, model, source_lang, target_lang, voice,
+        elapsed_ms, input_text_chars, output_text_chars, prompt_tokens, completion_tokens,
+        total_tokens, cached_prompt_tokens, reasoning_tokens, audio_duration_sec,
+        provider_audio_duration_sec, audio_bytes, chunk_count, keyterm_count, raw
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+    `,
+    [
+      usage.guildId,
+      usage.userId ?? null,
+      usage.sequence ?? null,
+      usage.stage,
+      usage.provider ?? null,
+      usage.model ?? null,
+      usage.sourceLang ?? null,
+      usage.targetLang ?? null,
+      usage.voice ?? null,
+      usage.elapsedMs ?? null,
+      usage.inputTextChars ?? null,
+      usage.outputTextChars ?? null,
+      usage.promptTokens ?? null,
+      usage.completionTokens ?? null,
+      usage.totalTokens ?? null,
+      usage.cachedPromptTokens ?? null,
+      usage.reasoningTokens ?? null,
+      usage.audioDurationSec ?? null,
+      usage.providerAudioDurationSec ?? null,
+      usage.audioBytes ?? null,
+      usage.chunkCount ?? null,
+      usage.keytermCount ?? null,
+      JSON.stringify(usage),
+    ],
+  );
+}
+
 export async function recordExternalApiUsage(usage: ExternalApiUsage): Promise<void> {
   if (!usage.guildId) {
     logger.warn({ usage }, 'Skipping billing usage record without guildId');
@@ -204,7 +244,7 @@ export async function recordExternalApiUsage(usage: ExternalApiUsage): Promise<v
   }
   const guildId = usage.guildId;
 
-  await appendUsageEvent(guildId, { event: 'external_api_usage', ...usage }).catch((err) => logEventsWriteFailure(guildId, err));
+  await insertUsageEvent(usage).catch((err) => logger.error({ err, guildId }, 'Failed to insert usage event'));
 
   const provider = usage.provider ?? 'unknown';
   const model = usage.model ?? 'unknown';
@@ -243,9 +283,12 @@ export async function recordExternalApiUsage(usage: ExternalApiUsage): Promise<v
   }
 }
 
+// trans_sessions 那一行是 /join 时（见 ../trans-sessions.ts 的 openTransSession）
+// 无条件 insert 好的，这里只 update 收尾——session_ended_at 这一列同时也是"对话素材
+// session 结束"的信号，不需要再单独调用一次 close，这一次 update 两件事一起做完。
 export async function finalizeSessionLedger(guildId: string): Promise<void> {
   const session = await getSession(guildId);
-  if (!session?.sessionStartedAt) return;
+  if (!session?.sessionStartedAt || !session?.transSessionId) return;
 
   await ensureUsageDateCurrent(guildId, session);
   const current = (await getSession(guildId)) ?? session;
@@ -264,13 +307,14 @@ export async function finalizeSessionLedger(guildId: string): Promise<void> {
     await client.query('begin');
     await client.query(
       `
-        insert into billing_session_ledger (guild_id, session_started_at, session_ended_at, duration_seconds, estimated_cost_usd, usage_breakdown)
-        values ($1, $2, $3, $4, $5, $6)
+        update trans_sessions
+        set session_ended_at = $2, duration_seconds = $3, estimated_cost_usd = $4, usage_breakdown = $5
+        where id = $1
       `,
-      [guildId, startedAt.toISOString(), endedAt.toISOString(), durationSeconds, totalCostUsd, JSON.stringify(breakdown)],
+      [session.transSessionId, endedAt.toISOString(), durationSeconds, totalCostUsd, JSON.stringify(breakdown)],
     );
     await client.query(
-      `update billing_accounts set lifetime_cost_usd = lifetime_cost_usd + $2, updated_at = now() where id = $1`,
+      `update guilds set lifetime_cost_usd = lifetime_cost_usd + $2, updated_at = now() where id = $1`,
       [account.id, totalCostUsd],
     );
     await client.query('commit');

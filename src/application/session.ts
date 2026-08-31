@@ -22,6 +22,8 @@ export interface Session {
   targetLang: string | undefined;
   ttsProvider: string | undefined;
   game: string | undefined;
+  transSessionId: string | undefined;
+  transcriptRetentionEnabled: boolean;
   planId: string;
   accountStatus: string;
   sttSecondsUsedToday: number;
@@ -57,6 +59,8 @@ function fromSessionHash(data: SessionHash, speakers: Map<string, SpeakerState>)
     targetLang: data.targetLang,
     ttsProvider: data.ttsProvider,
     game: data.game,
+    transSessionId: data.transSessionId,
+    transcriptRetentionEnabled: data.transcriptRetentionEnabled === 'true',
     planId: data.planId ?? DEFAULT_PLAN_ID,
     accountStatus: data.accountStatus ?? 'active',
     sttSecondsUsedToday: Number(data.sttSecondsUsedToday ?? 0),
@@ -178,6 +182,22 @@ export async function setGame(guildId: string, gameId: string): Promise<boolean>
 
   await redisClient.hset(sessionKey(guildId), 'game', gameId);
   logger.info({ guildId, game: gameId }, `guild ${guildId} game set to: ${gameId}`);
+  return true;
+}
+
+// /join 时调用一次（见 trans-sessions.ts 的 openTransSession），trans_sessions 那
+// 一行是无条件插入的（billing 结算不看这个 guild 有没有开对话素材留存），所以
+// transSessionId 本身不能再当"要不要采集对话"的信号——那个信号是单独缓存的
+// transcriptRetentionEnabled（/join 时查一次 guilds.transcript_retention_enabled
+// 快照进 session，中途改开关不影响进行中的会话，下次 /join 才生效）。pipeline.ts
+// 判断要不要写 transcript_events 时看这个布尔值，不看 transSessionId 是否存在。
+export async function setTransSession(guildId: string, transSessionId: string, transcriptRetentionEnabled: boolean): Promise<boolean> {
+  if (!(await sessionExists(guildId))) return false;
+
+  await redisClient.hset(sessionKey(guildId), {
+    transSessionId,
+    transcriptRetentionEnabled: String(transcriptRetentionEnabled),
+  });
   return true;
 }
 

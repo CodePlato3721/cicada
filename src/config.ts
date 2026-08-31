@@ -22,5 +22,4 @@ export const config = {
   redisCommandTimeoutMs: Number(process.env.REDIS_COMMAND_TIMEOUT_MS) || 1000,
   redisCacheTtlSeconds: Number(process.env.TRANSLATE_CACHE_TTL_SECONDS) || 3 * 24 * 60 * 60,
   databaseUrl: required('DATABASE_URL'),
-  eventsDir: required('EVENTS_DIR'),
 };
