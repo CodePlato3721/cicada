@@ -15,6 +15,7 @@ import {
   readSessionUsageBreakdown,
   clearSessionUsageBreakdown,
   type Session,
+  type UsageBreakdownGroup,
 } from '../session.js';
 import { BILLING_PLANS, DEFAULT_PLAN } from './plans.js';
 import { calculateSessionCostUsd } from './cost-calculator.js';
@@ -283,6 +284,17 @@ export async function recordExternalApiUsage(usage: ExternalApiUsage): Promise<v
   }
 }
 
+// 从 session 的 Redis 累计用量分组里，挑出某个 stage 用的供应商/模型——trans_sessions
+// 只留扁平的 <stage>_provider/<stage>_model 两列（不再是数组），如果这个 stage 在
+// 同一个 session 里实际用了不止一种供应商/模型组合（STT/LLM 实践中不会，都是部署
+// 时环境变量固定的；TTS 会,因为按目标语言路由,session 中途 /lang、/config 切换
+// 目标语言可能导致 TTS 供应商也跟着变),这里只取分组里排第一个的,不保证是"最后
+// 用的那个"——见 V6 迁移文件顶部注释。
+function pickProviderModel(groups: UsageBreakdownGroup[], stage: string): { provider: string | null; model: string | null } {
+  const group = groups.find((g) => g.stage === stage);
+  return { provider: group?.provider ?? null, model: group?.model ?? null };
+}
+
 // trans_sessions 那一行是 /join 时（见 ../trans-sessions.ts 的 openTransSession）
 // 无条件 insert 好的，这里只 update 收尾——session_ended_at 这一列同时也是"对话素材
 // session 结束"的信号，不需要再单独调用一次 close，这一次 update 两件事一起做完。
@@ -292,30 +304,55 @@ export async function finalizeSessionLedger(guildId: string): Promise<void> {
 
   await ensureUsageDateCurrent(guildId, session);
   const current = (await getSession(guildId)) ?? session;
-  await syncDailyUsageToDb(guildId, current.usageDate ?? todayUtc(), current.sttSecondsUsedToday, current.textCharsUsedToday, current.planId);
+  const usageDate = current.usageDate ?? todayUtc();
+  await syncDailyUsageToDb(guildId, usageDate, current.sttSecondsUsedToday, current.textCharsUsedToday, current.planId);
 
   const usageBreakdown = await readSessionUsageBreakdown(guildId);
   const startedAt = new Date(session.sessionStartedAt);
   const endedAt = new Date();
   const durationSeconds = Math.max((endedAt.getTime() - startedAt.getTime()) / 1000, 0);
 
+  const stt = pickProviderModel(usageBreakdown, 'stt');
+  const llm = pickProviderModel(usageBreakdown, 'llm');
+  const tts = pickProviderModel(usageBreakdown, 'tts');
+
   const client = await dbPool.connect();
   try {
     const account = await ensureAccount(client, guildId);
-    const { totalCostUsd, breakdown } = await calculateSessionCostUsd(client, usageBreakdown);
+    const { totalCostUsd } = await calculateSessionCostUsd(client, usageBreakdown);
 
     await client.query('begin');
     await client.query(
       `
         update trans_sessions
-        set session_ended_at = $2, duration_seconds = $3, estimated_cost_usd = $4, usage_breakdown = $5
+        set session_ended_at = $2, duration_seconds = $3, estimated_cost_usd = $4,
+            stt_provider = $5, stt_model = $6, llm_provider = $7, llm_model = $8, tts_provider = $9, tts_model = $10
         where id = $1
       `,
-      [session.transSessionId, endedAt.toISOString(), durationSeconds, totalCostUsd, JSON.stringify(breakdown)],
+      [
+        session.transSessionId,
+        endedAt.toISOString(),
+        durationSeconds,
+        totalCostUsd,
+        stt.provider,
+        stt.model,
+        llm.provider,
+        llm.model,
+        tts.provider,
+        tts.model,
+      ],
     );
     await client.query(
       `update guilds set lifetime_cost_usd = lifetime_cost_usd + $2, updated_at = now() where id = $1`,
       [account.id, totalCostUsd],
+    );
+    // daily_guild_usage 那一行在上面 syncDailyUsageToDb 里已经确保存在（insert ...
+    // on conflict do nothing/update），这里放心用增量 update——跟 stt_seconds/
+    // text_chars 是"从 Redis 快照当前值"不同，花费本来就只在 session 结束这一刻
+    // 算出一个数，没有更早的中间值可以同步，只能是"在这天已有的总数上再加一笔"。
+    await client.query(
+      `update daily_guild_usage set estimated_cost_usd = estimated_cost_usd + $3, updated_at = now() where guild_id = $1 and usage_date = $2`,
+      [guildId, usageDate, totalCostUsd],
     );
     await client.query('commit');
     logger.debug(
