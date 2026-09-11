@@ -11,6 +11,7 @@
     "build:scripts": "tsc -p scripts/tsconfig.json",
     "start": "npm run build && node dist/index.js",
     "manage": "npm run build && node dist/manage-cli.js",
+    "rollup-usage": "npm run build && node dist/rollup-daily-usage.js",
     "migrate": "npm run build:scripts && node dist/scripts/migrate-db.js",
     "deploy-commands": "npm run build && node dist/deploy-commands.js",
     "deploy-commands:global": "npm run build && node dist/deploy-commands.js --global",

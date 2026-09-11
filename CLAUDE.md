@@ -199,6 +199,14 @@ TimescaleDB 是 Postgres 扩展,不是另起一个数据库——继续用同一
 ### 本地开发:docker-compose 镜像切换 + 手动导出/导入
 本地 `docker-compose.yml` 的 Postgres 镜像从 `postgres:17` 换成 `timescale/timescaledb:latest-pg17`——这不是原地升级,旧镜像的数据卷对新镜像来说是认不出的(TimescaleDB 镜像的初始化逻辑不一样),所以旧环境要先 `pg_dump` 导出、换镜像重建容器、再 `psql` 导入回去,具体命令见 README「本地 Postgres」一节。全新环境(没起过旧容器)不受影响,直接用新镜像起数据库即可。
 
+### `daily_usage_cost`:每日用量/花费汇总(2026-08-31 接入)
+
+**问题**:`usage_events`(见上面「用量审计事件」)是逐次调用的原始事件,想看"某天/某个 guild 花了多少钱"得每次现场聚合 + 现算花费(`provider_prices` 联查),7 天后进入压缩 chunk 还会变慢;`daily_guild_usage`(V1 就有)看起来像是同一件事,但实际是另一个东西——它是**实时**的,跟着 Redis session 状态在会话进行中随时增量 update(`billing-service.ts` 的 `syncDailyUsageToDb`),只覆盖 `stt_seconds`/`text_chars` 两个跟套餐配额相关的维度,不含花费、不含 TTS、不能重跑/回填。
+
+**方案**:新增 `daily_usage_cost` 表(`db/migrations/V6`),每天由一个 cron job(`src/rollup-daily-usage.ts`,`npm run rollup-usage`)从 `usage_events` 按 `(usage_date, guild_id, stage, provider, model)` 聚合一次、用 `cost-calculator.ts` 的 `calculateEstimatedCostUsd` 现算花费、`insert ... on conflict do update` 幂等写入——不是 hypertable(这张表一天只写一次,量级远低于 usage_events/transcript_events 那种逐次调用的高频写入,套 hypertable 是不必要的开销),普通表 + `usage_date` 索引即可。可以安全重跑/回填(`npm run rollup-usage -- 2026-08-25` 手动指定日期)。部署方式是 pm2 的 `--cron-restart`(每天 UTC 00:15 跑一次、跑完退出,不是常驻服务),不用系统 crontab,跟 cicada 主进程用同一套工具管理,详见 README「一次性:注册每日用量/花费汇总的 pm2 定时任务」。
+
+**花费口径故意跟 `trans_sessions.estimated_cost_usd`(会话结算)保持一致,没有做得比它更精确**:`provider_prices` 里有一条 `addon_keyterm_prompting`(Deepgram STT 命中术语库关键词时的加价),`cost-calculator.ts` 的 `calculateEstimatedCostUsd` 支持这个加价,但触发条件是传入的 `keytermCount > 0`——而 `session.ts` 的 `accumulateSessionUsage`(会话级用量在 Redis 里按 `stage|provider|model` 分组累加)从来没有累加过 `keytermCount` 这个维度,所以会话结算路径事实上从未真正应用过这条加价,是个已存在、这次没有顺手修的既有 gap。`usage_events` 表本身是有 `keyterm_count` 这一列的(逐次调用留了这个原始量),`rollup-daily-usage.ts` 技术上可以比会话结算算得更准,但故意没有这么做——如果两条路径的花费口径不一致,`daily_usage_cost` 按天/按 guild 汇总出来的总花费会跟 `trans_sessions.estimated_cost_usd` 的和对不上,没法拿后者做前者的 sanity check,这个交叉验证的价值比"STT 加价这一小笔钱算准"更重要。以后要补这个加价,应该两条路径(Redis 累加 + `usage_events` 聚合)一起改,不要只改一边。
+
 ---
 
 ## VAD 切句注意事项
