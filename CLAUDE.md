@@ -214,7 +214,9 @@ TimescaleDB 是 Postgres 扩展,不是另起一个数据库——继续用同一
 2. 不再单独建汇总表,也不需要 cron job——`daily_guild_usage`(V1 就有)本来就在会话结束/日期翻转/配额用尽时实时同步(`billing-service.ts` 的 `syncDailyUsageToDb`),直接给它加一列 `estimated_cost_usd`,复用同一套触发时机。跟 `stt_seconds`/`text_chars` 不同的是,花费**只在 session 结束那一刻**算出来(`calculateSessionCostUsd` 只在 `finalizeSessionLedger` 里调用一次,不是每次 STT/LLM/TTS 调用都算),所以这一列是"在当天已有总数上再加一笔"(`estimated_cost_usd = estimated_cost_usd + $costOfThisSession`),不是像另外两列那样"从 Redis 快照当前值"——没有更早的中间值可以同步,长时间跑的 session 不会看到这天的花费实时增长,要等这个 session 真正结束才会体现。
 3. 细粒度暂时只做到 guild+day 一行为止,不做全局汇总、不按 provider/stage 拆分——真有这个报表需求了,再考虑要不要在 `daily_guild_usage` 之上另起一层。
 
-`daily_usage_cost` 表和创建它的迁移文件、`src/rollup-daily-usage.ts`、`npm run rollup-usage`、README 里注册 pm2 cron-restart 定时任务那一节都已经删除(V2~V6 当时都还没合并进 `main`,没有部署到任何环境,直接改/删,不留"建了又撤销"的迁移历史,见 `db/migrations/V6__flatten_session_cost_tracking.sql` 顶部注释)。
+`src/rollup-daily-usage.ts`、`npm run rollup-usage`、README 里注册 pm2 cron-restart 定时任务那一节都已经删除。
+
+**`daily_usage_cost` 表本身是通过 `db/migrations/V7__flatten_session_cost_tracking.sql`(不是 V6)`drop table` 掉的,不是直接把创建它的迁移文件删掉**——最初判断"V2~V6 都还没合并进 `main`、没有部署到任何环境,可以直接原地改 V6、不留历史痕迹",这个判断**错了**:迁移是否已经生效,标准是生产库的 `flyway_schema_history` 里有没有记录,不是 `main` 分支的 git 历史里有没有。开发这个功能期间,有人在生产 droplet 上手动 checkout 过这个 feature 分支、手动跑过一次 `npm run migrate`(README「部署到服务器(手动)」那节写的操作,只是没有先 `git pull origin main`),已经把 V2~V6(包括创建 `daily_usage_cost` 的旧 V6)真的应用到了生产库。事后原地把 V6 的内容换成本节这套 flatten 设计,production 那边 `flyway_schema_history` 记录的 V6 checksum 对不上仓库里新的 V6 文件,下次 `npm run migrate` 会在 `validate` 阶段直接失败,整个部署中断。修复:V6 还原回创建 `daily_usage_cost` 的原始内容,本节这套改动挪到新的 `V7__flatten_session_cost_tracking.sql`,V7 里先 `drop table if exists daily_usage_cost`,再补上 `trans_sessions` 六个字段 + `daily_guild_usage.estimated_cost_usd`。**教训**:判断一个还没进 `main` 的迁移版本号"能不能原地改",不能只看 git 历史,要看生产库 `flyway_schema_history` 里实际记录了什么——手动在服务器上跑 `npm run migrate` 时也要留意自己当时 checkout 的是哪个分支,不是只有走 `main` 的自动部署才会让生产库产生迁移记录。
 
 ---
 
