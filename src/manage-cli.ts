@@ -130,7 +130,8 @@ async function main(): Promise<void> {
       if (!guildId) throw new Error('guildId is required');
       const result = await dbPool.query(
         `
-          select session_started_at, session_ended_at, duration_seconds, estimated_cost_usd, usage_breakdown, game_id
+          select session_started_at, session_ended_at, duration_seconds, estimated_cost_usd,
+                 stt_provider, stt_model, llm_provider, llm_model, tts_provider, tts_model, game_id
           from trans_sessions
           where guild_id = $1
           order by session_started_at desc

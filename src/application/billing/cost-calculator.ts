@@ -67,18 +67,14 @@ export async function calculateEstimatedCostUsd(client: PoolClient, usage: Exter
   return Number(total.toFixed(8));
 }
 
-export interface SessionCostBreakdownEntry {
-  stage: string;
-  provider: string;
-  model: string;
-  estimatedCostUsd: number;
-}
-
+// 只返回总数，不再逐项回传每个 stage/provider/model 分组花了多少——trans_sessions
+// 不再持久化这份按分组拆开的明细（usage_breakdown 已删除，见 V6 迁移），调用方
+// 需要"这个 session 用了哪个供应商/模型"时直接从传入的 groups 里取 stage/provider/
+// model，不需要 cost-calculator 把这些信息原样传回去。
 export async function calculateSessionCostUsd(
   client: PoolClient,
   groups: Array<{ stage: string; provider: string; model: string; metrics: Record<string, number> }>,
-): Promise<{ totalCostUsd: number; breakdown: SessionCostBreakdownEntry[] }> {
-  const breakdown: SessionCostBreakdownEntry[] = [];
+): Promise<{ totalCostUsd: number }> {
   let totalCostUsd = 0;
 
   for (const group of groups) {
@@ -93,10 +89,8 @@ export async function calculateSessionCostUsd(
       reasoningTokens: group.metrics.reasoningTokens,
       inputTextChars: group.metrics.inputTextChars,
     };
-    const estimatedCostUsd = await calculateEstimatedCostUsd(client, usage);
-    breakdown.push({ stage: group.stage, provider: group.provider, model: group.model, estimatedCostUsd });
-    totalCostUsd += estimatedCostUsd;
+    totalCostUsd += await calculateEstimatedCostUsd(client, usage);
   }
 
-  return { totalCostUsd: Number(totalCostUsd.toFixed(8)), breakdown };
+  return { totalCostUsd: Number(totalCostUsd.toFixed(8)) };
 }

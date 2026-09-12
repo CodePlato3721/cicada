@@ -13,6 +13,12 @@
 
 ---
 
+## 与 Claude 协作的工作流程
+
+用户说"现在设计"(或类似措辞,表达"开始设计"这个意图),意思是**进入讨论环节**——提方案、说清楚候选方案之间的取舍、问清楚模糊的需求点,等用户确认了具体设计再动手写迁移文件/代码/建表。**不要**理解成"设计完直接实现并提交",跳过讨论直接写代码/建表/建 migration 文件属于操之过急,哪怕最后写出来的东西是对的,也跳过了用户本来想要的"共同拍板设计"这一步。
+
+---
+
 ## 核心技术决策
 
 ### 服务端语言:Node.js
@@ -177,7 +183,7 @@ TimescaleDB 是 Postgres 扩展,不是另起一个数据库——继续用同一
 ### `trans_sessions`:billing 和对话素材共用同一个 session 概念(2026-08-29 合并)
 最初设计成两张表:`billing_session_ledger`(`/leave` 时一次性 insert 一整行,记账用)和 `transcript_sessions`(`/join` 时先 insert 拿 `id`,`/leave` 时再 update `ended_at`,给对话素材分组用)。后来发现两者本质是同一个实体——一次 `/join`~`/leave` 的翻译会话——拆两张表是在重复建模同一个东西,合并成一张表 `trans_sessions`(`billing_session_ledger` 改名而来,见 `db/migrations/V5`)。
 
-- **行的生命周期是"插入早、增量更新",不是一次性写完**:`/join` 时就 insert 一行(此刻只知道 `guild_id`/`session_started_at`,`openTransSession`,见 `src/application/trans-sessions.ts`);会话进行中 `/game`、`/config` 切换游戏时 update `game_id`(`updateTransSessionGame`);`/leave` 时 update 补齐 `session_ended_at`/`duration_seconds`/`estimated_cost_usd`/`usage_breakdown`(`finalizeSessionLedger`,留在 `billing-service.ts` 里,因为要顺带算费用)。原来两个表分别对应"结束时一次性 insert"和"开始 insert、结束再 update"两种不同的生命周期,现在统一成后者。
+- **行的生命周期是"插入早、增量更新",不是一次性写完**:`/join` 时就 insert 一行(此刻只知道 `guild_id`/`session_started_at`,`openTransSession`,见 `src/application/trans-sessions.ts`);会话进行中 `/game`、`/config` 切换游戏时 update `game_id`(`updateTransSessionGame`);`/leave` 时 update 补齐 `session_ended_at`/`duration_seconds`/`estimated_cost_usd`/`stt_provider`/`stt_model`/`llm_provider`/`llm_model`/`tts_provider`/`tts_model`(`finalizeSessionLedger`,留在 `billing-service.ts` 里,因为要顺带算费用)。原来两个表分别对应"结束时一次性 insert"和"开始 insert、结束再 update"两种不同的生命周期,现在统一成后者。
 - 这行现在**无条件插入**(不看 `guilds.transcript_retention_enabled`)——billing 结算不管这个 guild 有没有开对话素材留存,这两件事互不影响。`session_started_at`/`session_ended_at`/`duration_seconds` 原来是 not null(因为原来一次性 insert 全填完),现在放宽成 nullable(`/join` 那一刻还不知道后两个),`V1` 里已有的 `check (session_ended_at >= session_started_at)` 约束不用动——某一列是 null 时这个表达式算 null,Postgres 里 check 约束遇到 null 视为通过。
 - **`transcript_events` 要不要写,只看应用层缓存的一个布尔标志,不看 `trans_sessions` 这一行**:合并前"`transcript_sessions` 这行存不存在"本身就是"这个 guild 开没开对话素材留存"的信号(不开就跳过整个 session 创建);合并后这行无条件存在,不能再当这个信号用。改成 `openTransSession` 在 `/join` 时查一次 `guilds.transcript_retention_enabled`,连同新插入行的 `id` 一起存进 Redis session(`session.transSessionId` + `session.transcriptRetentionEnabled`,见 `session.ts` 的 `setTransSession`)。`pipeline.ts` 判断要不要 `recordTranscriptEvent` 时看 `session.transcriptRetentionEnabled` 这个缓存值,不查库、也不看 `transSessionId` 是否存在。开关切换不影响进行中的 session(下次 `/join` 才生效),用 `npm run manage -- transcripts <guildId> on|off` 管理(见下面 CLI 改名)。
 
@@ -199,13 +205,18 @@ TimescaleDB 是 Postgres 扩展,不是另起一个数据库——继续用同一
 ### 本地开发:docker-compose 镜像切换 + 手动导出/导入
 本地 `docker-compose.yml` 的 Postgres 镜像从 `postgres:17` 换成 `timescale/timescaledb:latest-pg17`——这不是原地升级,旧镜像的数据卷对新镜像来说是认不出的(TimescaleDB 镜像的初始化逻辑不一样),所以旧环境要先 `pg_dump` 导出、换镜像重建容器、再 `psql` 导入回去,具体命令见 README「本地 Postgres」一节。全新环境(没起过旧容器)不受影响,直接用新镜像起数据库即可。
 
-### `daily_usage_cost`:每日用量/花费汇总(2026-08-31 接入)
+### `trans_sessions` 的 provider/model 六个扁平字段 + `daily_guild_usage.estimated_cost_usd`(2026-08-31)
 
-**问题**:`usage_events`(见上面「用量审计事件」)是逐次调用的原始事件,想看"某天/某个 guild 花了多少钱"得每次现场聚合 + 现算花费(`provider_prices` 联查),7 天后进入压缩 chunk 还会变慢;`daily_guild_usage`(V1 就有)看起来像是同一件事,但实际是另一个东西——它是**实时**的,跟着 Redis session 状态在会话进行中随时增量 update(`billing-service.ts` 的 `syncDailyUsageToDb`),只覆盖 `stt_seconds`/`text_chars` 两个跟套餐配额相关的维度,不含花费、不含 TTS、不能重跑/回填。
+**先试过、又放弃的方向**:最初想法是 `trans_sessions` 存一个 `usage_breakdown` jsonb 数组(按 stage/provider/model 分组、每组各自的花费),再单独建一张 `daily_usage_cost` 表,由一个 pm2 cron job(`src/rollup-daily-usage.ts`)每天从 `usage_events` 批量聚合一次、现算花费写进去。这个方向能在同一张表里任意上卷(按 guild/按 provider/全局每日总花费都是简单 group by),但代价是多一张表、多一个定时任务、多一条"两条路径花费口径要不要保持一致"的心智负担(`usage_events` 有 `keyterm_count` 这个原始量,cron 聚合理论上能比会话结算算得更准,但为了让两边花费对得上、能互相 sanity check,故意没有算这个加价)。讨论后判断这套复杂度对现在的需求来说不值——当时还没有真正的报表/看板需求,只是"先把数据留住",不需要现在就做到能任意上卷的粒度。
 
-**方案**:新增 `daily_usage_cost` 表(`db/migrations/V6`),每天由一个 cron job(`src/rollup-daily-usage.ts`,`npm run rollup-usage`)从 `usage_events` 按 `(usage_date, guild_id, stage, provider, model)` 聚合一次、用 `cost-calculator.ts` 的 `calculateEstimatedCostUsd` 现算花费、`insert ... on conflict do update` 幂等写入——不是 hypertable(这张表一天只写一次,量级远低于 usage_events/transcript_events 那种逐次调用的高频写入,套 hypertable 是不必要的开销),普通表 + `usage_date` 索引即可。可以安全重跑/回填(`npm run rollup-usage -- 2026-08-25` 手动指定日期)。部署方式是 pm2 的 `--cron-restart`(每天 UTC 00:15 跑一次、跑完退出,不是常驻服务),不用系统 crontab,跟 cicada 主进程用同一套工具管理,详见 README「一次性:注册每日用量/花费汇总的 pm2 定时任务」。
+**最终方案,更简单**:
+1. `trans_sessions` 不再存整个 `usage_breakdown` 数组,只留 `stt_provider`/`stt_model`/`llm_provider`/`llm_model`/`tts_provider`/`tts_model` 六个扁平字段——只回答"这个 session 的三个环节各自用了哪个供应商/模型",不回答"每个环节各花了多少钱"。真正的总花费还是原来就有的 `estimated_cost_usd` 一个数(这一列不受影响,只是 `usage_breakdown` 这个平行的、按 stage 拆分的明细被删掉了)。`finalizeSessionLedger` 里从 Redis 累计的 session 级用量分组里各挑一条(`pickProviderModel`)——STT/LLM 供应商实际上是部署时环境变量固定的,一个 session 内不会变;但 TTS 是按目标语言动态路由的(见「供应商可切换」一节),如果 session 中途 `/lang`、`/config` 切过目标语言导致 TTS 供应商也跟着变了,这里只会留下其中一个(哪个由 Redis 累计时的分组顺序决定,不保证是"最后用的那个")——这是"从数组收窄成单值"必须接受的取舍。
+2. 不再单独建汇总表,也不需要 cron job——`daily_guild_usage`(V1 就有)本来就在会话结束/日期翻转/配额用尽时实时同步(`billing-service.ts` 的 `syncDailyUsageToDb`),直接给它加一列 `estimated_cost_usd`,复用同一套触发时机。跟 `stt_seconds`/`text_chars` 不同的是,花费**只在 session 结束那一刻**算出来(`calculateSessionCostUsd` 只在 `finalizeSessionLedger` 里调用一次,不是每次 STT/LLM/TTS 调用都算),所以这一列是"在当天已有总数上再加一笔"(`estimated_cost_usd = estimated_cost_usd + $costOfThisSession`),不是像另外两列那样"从 Redis 快照当前值"——没有更早的中间值可以同步,长时间跑的 session 不会看到这天的花费实时增长,要等这个 session 真正结束才会体现。
+3. 细粒度暂时只做到 guild+day 一行为止,不做全局汇总、不按 provider/stage 拆分——真有这个报表需求了,再考虑要不要在 `daily_guild_usage` 之上另起一层。
 
-**花费口径故意跟 `trans_sessions.estimated_cost_usd`(会话结算)保持一致,没有做得比它更精确**:`provider_prices` 里有一条 `addon_keyterm_prompting`(Deepgram STT 命中术语库关键词时的加价),`cost-calculator.ts` 的 `calculateEstimatedCostUsd` 支持这个加价,但触发条件是传入的 `keytermCount > 0`——而 `session.ts` 的 `accumulateSessionUsage`(会话级用量在 Redis 里按 `stage|provider|model` 分组累加)从来没有累加过 `keytermCount` 这个维度,所以会话结算路径事实上从未真正应用过这条加价,是个已存在、这次没有顺手修的既有 gap。`usage_events` 表本身是有 `keyterm_count` 这一列的(逐次调用留了这个原始量),`rollup-daily-usage.ts` 技术上可以比会话结算算得更准,但故意没有这么做——如果两条路径的花费口径不一致,`daily_usage_cost` 按天/按 guild 汇总出来的总花费会跟 `trans_sessions.estimated_cost_usd` 的和对不上,没法拿后者做前者的 sanity check,这个交叉验证的价值比"STT 加价这一小笔钱算准"更重要。以后要补这个加价,应该两条路径(Redis 累加 + `usage_events` 聚合)一起改,不要只改一边。
+`src/rollup-daily-usage.ts`、`npm run rollup-usage`、README 里注册 pm2 cron-restart 定时任务那一节都已经删除。
+
+**`daily_usage_cost` 表本身是通过 `db/migrations/V7__flatten_session_cost_tracking.sql`(不是 V6)`drop table` 掉的,不是直接把创建它的迁移文件删掉**——最初判断"V2~V6 都还没合并进 `main`、没有部署到任何环境,可以直接原地改 V6、不留历史痕迹",这个判断**错了**:迁移是否已经生效,标准是生产库的 `flyway_schema_history` 里有没有记录,不是 `main` 分支的 git 历史里有没有。开发这个功能期间,有人在生产 droplet 上手动 checkout 过这个 feature 分支、手动跑过一次 `npm run migrate`(README「部署到服务器(手动)」那节写的操作,只是没有先 `git pull origin main`),已经把 V2~V6(包括创建 `daily_usage_cost` 的旧 V6)真的应用到了生产库。事后原地把 V6 的内容换成本节这套 flatten 设计,production 那边 `flyway_schema_history` 记录的 V6 checksum 对不上仓库里新的 V6 文件,下次 `npm run migrate` 会在 `validate` 阶段直接失败,整个部署中断。修复:V6 还原回创建 `daily_usage_cost` 的原始内容,本节这套改动挪到新的 `V7__flatten_session_cost_tracking.sql`,V7 里先 `drop table if exists daily_usage_cost`,再补上 `trans_sessions` 六个字段 + `daily_guild_usage.estimated_cost_usd`。**教训**:判断一个还没进 `main` 的迁移版本号"能不能原地改",不能只看 git 历史,要看生产库 `flyway_schema_history` 里实际记录了什么——手动在服务器上跑 `npm run migrate` 时也要留意自己当时 checkout 的是哪个分支,不是只有走 `main` 的自动部署才会让生产库产生迁移记录。
 
 ---
 
