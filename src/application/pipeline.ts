@@ -242,10 +242,6 @@ export async function handleSegment(
       return;
     }
 
-    // 要不要写 transcript_events 只看这个缓存的布尔标志（/join 时从
-    // guilds.transcript_retention_enabled 快照进 session，见 trans-sessions.ts），
-    // 不看 session.transSessionId 是否存在——那一行现在无条件被创建（billing 结算
-    // 需要），不能再当"这个 guild 开没开对话素材留存"的信号。
     const transSessionId = session.transSessionId;
     if (session.transcriptRetentionEnabled && transSessionId) {
       recordTranscriptEvent({

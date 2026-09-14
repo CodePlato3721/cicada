@@ -112,7 +112,6 @@ export async function startListening(connection: VoiceConnection, voiceChannel: 
 
   await createSession(guildId);
   await hydrateSessionBillingState(guildId);
-  // 依赖上一步已经 ensureAccount 把 guilds 行建好，才能查 transcript_retention_enabled。
   await openTransSession(guildId);
   startBillingSync(guildId);
   guildVoiceRuntimes.set(guildId, { connection, voiceChannel, speakers: new Map() });
@@ -170,8 +169,6 @@ export async function stopListening(guildId: string): Promise<void> {
 
   guildVoiceRuntimes.delete(guildId);
   stopBillingSync(guildId);
-  // trans_sessions 的 session_ended_at 在这一步一并 update（见 billing-service.ts
-  // 的 finalizeSessionLedger），不需要再单独关一次对话素材 session。
   await finalizeSessionLedger(guildId).catch((err) => logger.error({ err, guildId }, `Failed to finalize session ledger for guild ${guildId}`));
   await deleteSession(guildId);
   clearPlaybackQueue(guildId);
