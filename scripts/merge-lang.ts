@@ -1,9 +1,3 @@
-// 用法：node scripts/merge-lang.js heroes ko ar
-//
-// 把人工审核过的 scripts/drafts/<source>.<lang1>-<lang2>.patch.json 合并进正式词典
-// src/domain/terminology/<game>.json——这是"给已有 term_id 加字段"，不是追加新词条，
-// 跟 merge-terms.js（只追加、不改动已有条目）刚好相反，不能混用。
-// 审核方式：直接编辑 patch 文件本身（删掉不要的字段/条目、修正翻译）。
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { getSource } from './wiki-sources.js';
@@ -15,9 +9,6 @@ interface DictEntry {
 
 type LangPatch = { term_id: string } & Record<string, string | undefined>;
 
-// 见 merge-terms.ts 顶部注释：编译产物跑在 dist/scripts/ 下，跟源码目录深度不一样，
-// 锚定 process.cwd()（npm script 固定从项目根目录调用）比按 __dirname 手算相对
-// 路径更稳。
 const projectRoot = process.cwd();
 
 const args = process.argv.slice(2);

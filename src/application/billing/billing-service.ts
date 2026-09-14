@@ -197,8 +197,6 @@ export async function checkTranslateAllowed(guildId: string, session: Session, t
   return { allowed: true, planId: plan.id, warningMessage };
 }
 
-// usage_events 是 TimescaleDB hypertable（见 db/migrations/V4），写入失败只记日志、
-// 不阻塞主流程——跟这个表之前用 JSONL 兜底时同样的可靠性取向，只是换了存储介质。
 async function insertUsageEvent(usage: ExternalApiUsage): Promise<void> {
   await dbPool.query(
     `
@@ -284,20 +282,11 @@ export async function recordExternalApiUsage(usage: ExternalApiUsage): Promise<v
   }
 }
 
-// 从 session 的 Redis 累计用量分组里，挑出某个 stage 用的供应商/模型——trans_sessions
-// 只留扁平的 <stage>_provider/<stage>_model 两列（不再是数组），如果这个 stage 在
-// 同一个 session 里实际用了不止一种供应商/模型组合（STT/LLM 实践中不会，都是部署
-// 时环境变量固定的；TTS 会,因为按目标语言路由,session 中途 /lang、/config 切换
-// 目标语言可能导致 TTS 供应商也跟着变),这里只取分组里排第一个的,不保证是"最后
-// 用的那个"——见 V6 迁移文件顶部注释。
 function pickProviderModel(groups: UsageBreakdownGroup[], stage: string): { provider: string | null; model: string | null } {
   const group = groups.find((g) => g.stage === stage);
   return { provider: group?.provider ?? null, model: group?.model ?? null };
 }
 
-// trans_sessions 那一行是 /join 时（见 ../trans-sessions.ts 的 openTransSession）
-// 无条件 insert 好的，这里只 update 收尾——session_ended_at 这一列同时也是"对话素材
-// session 结束"的信号，不需要再单独调用一次 close，这一次 update 两件事一起做完。
 export async function finalizeSessionLedger(guildId: string): Promise<void> {
   const session = await getSession(guildId);
   if (!session?.sessionStartedAt || !session?.transSessionId) return;
@@ -346,10 +335,6 @@ export async function finalizeSessionLedger(guildId: string): Promise<void> {
       `update guilds set lifetime_cost_usd = lifetime_cost_usd + $2, updated_at = now() where id = $1`,
       [account.id, totalCostUsd],
     );
-    // daily_guild_usage 那一行在上面 syncDailyUsageToDb 里已经确保存在（insert ...
-    // on conflict do nothing/update），这里放心用增量 update——跟 stt_seconds/
-    // text_chars 是"从 Redis 快照当前值"不同，花费本来就只在 session 结束这一刻
-    // 算出一个数，没有更早的中间值可以同步，只能是"在这天已有的总数上再加一笔"。
     await client.query(
       `update daily_guild_usage set estimated_cost_usd = estimated_cost_usd + $3, updated_at = now() where guild_id = $1 and usage_date = $2`,
       [guildId, usageDate, totalCostUsd],

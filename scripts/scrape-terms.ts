@@ -1,11 +1,3 @@
-// 用法：
-//   node scripts/scrape-terms.js heroes
-//   node scripts/scrape-terms.js --all
-//
-// 抓完不会直接改 src/domain/terminology/<game>.json，写到 scripts/drafts/<source>.draft.json
-// 里等人工审核（删掉不要的条目、修正 flags 标出来的可疑条目），审核完用
-// `node scripts/merge-terms.js <source>` 合并进正式词典。为什么要这道人工审核，
-// 见 CLAUDE.md「游戏黑话/专有名词术语库」和这个功能的实现规划。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { SOURCES, getSource } from './wiki-sources.js';
@@ -19,9 +11,6 @@ import {
   pool,
 } from './lib/wiki-scraper.js';
 
-// 见 merge-terms.ts 顶部注释：编译产物跑在 dist/scripts/ 下，跟源码目录深度不一样，
-// 锚定 process.cwd()（npm script 固定从项目根目录调用）比按 __dirname 手算相对
-// 路径更稳。
 const projectRoot = process.cwd();
 const DRAFTS_DIR = path.join(projectRoot, 'scripts/drafts');
 
@@ -43,9 +32,6 @@ interface DraftEntry {
   flags?: string[];
 }
 
-// 常见英文人名的粗略名单——命中就标 common-name 风险，提醒"这个词条可能跟日常
-// 对话里的真人名字撞车"（英雄那批数据里 Charlie/Mia/Molly/Patrick/Wayne/Gordon
-// 这几个就是这么被发现的）。不追求完整，宁可漏标也不做成什么复杂的姓名库。
 const COMMON_NAMES = new Set(
   [
     'James', 'John', 'Robert', 'Michael', 'David', 'William', 'Richard', 'Joseph', 'Thomas',
@@ -59,7 +45,7 @@ const COMMON_NAMES = new Set(
   ].map((n) => n.toLowerCase()),
 );
 
-const UNUSUAL_PUNCTUATION = /[–—&]/; // 破折号/&，不太可能出现在语音转写结果里
+const UNUSUAL_PUNCTUATION = /[–—&]/;
 
 function flagRisks(entry: DraftEntry): string[] {
   const flags: string[] = [];
@@ -107,8 +93,6 @@ async function scrapeSource(sourceId: string): Promise<void> {
       const zhName = await resolveZhName(enDetailUrl);
       return {
         slug,
-        // 科技类分类的名字常带等级罗马数字后缀（"Lancer Armor I"），这里在中英文
-        // 两边都去掉，只留基础名——后面按去重后的名字合并同一等级序列的多条记录。
         en: stripTierSuffix(cleanText(name)),
         zh: zhName ? stripTierSuffix(cleanText(zhName)) : null,
       };
@@ -123,8 +107,6 @@ async function scrapeSource(sourceId: string): Promise<void> {
   const draft: DraftEntry[] = [];
   let skippedExisting = 0;
   let skippedTierDuplicate = 0;
-  // 去掉等级后缀之后，同一次抓取内可能出现多条同名记录（"Lancer Armor I/II/III..."
-  // 全部变成 "Lancer Armor"）——只保留第一次出现的那条，代表这个基础名。
   const seenThisRun = new Set<string>();
   for (const { en, zh } of paired) {
     const key = en.toLowerCase();
@@ -151,9 +133,6 @@ async function scrapeSource(sourceId: string): Promise<void> {
   console.log(`New: ${draft.length} entr(y/ies) (${flaggedCount} flagged as risky)`);
   console.log(`Already existing (skipped): ${skippedExisting} entr(y/ies)`);
   console.log(`Tier-suffix duplicates (skipped): ${skippedTierDuplicate} entr(y/ies)`);
-  // 未配对的条目也可能因为同一个基础名有好几个等级、每个等级都没有中文页面而重复
-  // 出现（比如 "Weapons Prep I/II/III..." 全部缺中文页），这里只展示去重后的基础名，
-  // 不然日志会把同一个名字打印五六遍。
   const unpairedUniqueNames = [...new Set(unpaired.map((u) => u.en))];
   console.log(
     `Unpaired (no Chinese page): ${unpaired.length} entr(y/ies), ${unpairedUniqueNames.length} distinct base name(s)` +
